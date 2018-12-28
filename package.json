@@ -1,8 +1,7 @@
 {
-  "devDependencies": {
-    "sqlite3": "^4.0.4"
-  },
+  "devDependencies": {},
   "dependencies": {
+    "better-sqlite3": "^5.2.1",
     "sql-escape-string": "^1.1.0"
   }
 }

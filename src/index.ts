@@ -149,9 +149,10 @@ function pprintQueryExpr(sql: QueryExpr): string {
 function runSql(sql: Statement, db: any): Subscribe<any> {
   return (next, complete) => {
     if (sql[0] === 'Select') {
-      const [tag, quantifier, list, from, where, limit, offset] = sql;
-      const query = pprintStatement(sql);
-      db.each(query, (a, b) => next([a, b]), complete);
+      const stmt = db.prepare(pprintStatement(sql)).raw();
+      const results = stmt.all();
+      next(results);
+      complete();
       return;
     }
     return absurd(sql[0]);
@@ -160,19 +161,25 @@ function runSql(sql: Statement, db: any): Subscribe<any> {
 
 declare const __dirname:any;
 declare const require:any;
-const sqlite3 = require('sqlite3');
+const Sqlite3 = require('better-sqlite3');
 const path = require('path');
-const db = new sqlite3.Database(path.join(__dirname, '../elk.sqlite'));
+const db = new Sqlite3(path.join(__dirname, '../elk.sqlite'));
 
 const { All, Distinct } = Quantifier;
 // @ts-ignore
-const sql: Statement = ['Select', All, ['id', 'name'], 'tariffs', ['Between', ['Ident', ['id']], 0, 10], null, null];
+const sql = [
+  'Select', All, ['id', 'name', 'advance_payment'], 'tariffs',
+  ['BinOp', 'And',
+   ['Between', ['Ident', ['id']], 0, 1000],
+   ['BinOp', '!=', ['Ident', ['is_deleted']], ['Num', 1]],
+  ],
+  null, null
+];
 
 console.log(JSON.stringify(sql));
-console.log('// => ' + pprintStatement(sql));
-runSql(sql, db)(([err, row]) => {
-  if (err) console.log('err', err);
-  else console.log(row);
+console.log('// => ' + pprintStatement(sql as any));
+runSql(sql as any, db)((results) => {
+  console.log(results);
 }, () => console.log('complete'));
 
 
