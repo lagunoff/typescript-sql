@@ -1,9 +1,11 @@
 import { absurd } from './types';
+import { prepareQueryExpr } from './prepare';
+import { prepareUnion } from './union-fields';
 // import * as esc from 'sql-escape-string';
 
-const esc = x => x;
-const escident = xs => xs.map(escident1).join('.');
-const escident1 = x => x === '*' ? x : '`' + x + '`';
+export const esc = x => x;
+export const escident = xs => xs.map(escident1).join('.');
+export const escident1 = x => x === '*' ? x : '`' + x.replace(/`/g, '\`') + '`';
 
 export type ScalarExpr<A = any> =
   | Pure<A>
@@ -35,6 +37,7 @@ export type TableRef =
   | Table
   | Join
   | Func
+  | TableRefQueryExpr
 ;
 
 
@@ -60,14 +63,14 @@ export type InValue<T = any> =
 export type Canceller = () => void;
 export type Consumer<A> = (x: A) => void;
 export type Subscribe<A> = (next: Consumer<A>, completed: () => void) => Canceller;
-function noopFunc() {}
+export function noopFunc() {}
 
 
-function pprintStatement(stmt: Statement): string {
+export function pprintStatement(stmt: Statement): string {
   return pprintQueryExpr(stmt);
 }
 
-function pprintTableRef(table: TableRef): string {
+export function pprintTableRef(table: TableRef): string {
   if (table instanceof Table) {
     return escident(table._name);
   }  
@@ -84,7 +87,7 @@ function pprintTableRef(table: TableRef): string {
   }
 
   if (table instanceof TableRefQueryExpr) {
-    return pprintQueryExpr(table._expr);
+    return '(' + pprintQueryExpr(table._expr) + ')';
   }  
 
   if (table instanceof Func) {
@@ -92,16 +95,17 @@ function pprintTableRef(table: TableRef): string {
     return escident(name) + '(' + _args.map(pprintScalarExpr).join(', ') + ')';
   }  
 
-  return absurd(table[0]);
+  return absurd(table);
 }
 
 
-function pprintScalarExpr(expr: ScalarExpr): string {
+export function pprintScalarExpr(expr: ScalarExpr): string {
   const lparen = ''; //'(';
   const rparen = ''; // ')';
   if (expr instanceof Pure) {
     if (typeof(expr._value) === 'number') return String(expr._value);
     if (typeof(expr._value) === 'string') return JSON.stringify(expr._value);
+    if (expr._value === null) return 'NULL';
     throw new Error('Unimplemented');
   }
   if (expr instanceof Ident) {
@@ -126,7 +130,7 @@ function pprintScalarExpr(expr: ScalarExpr): string {
   }
   if (expr instanceof App) {
     const { _name, _args } = expr;
-    return escident(_name) + lparen + _args.map(pprintScalarExpr).join(', ') +  rparen;
+    return escident(_name) + '(' + _args.map(pprintScalarExpr).join(', ') + ')';
   }
   if (expr instanceof In) {
     const { _expr, _value } = expr;
@@ -145,17 +149,19 @@ function pprintScalarExpr(expr: ScalarExpr): string {
   return absurd(expr[0]);
 }
 
-function pprintQueryExpr(expr: QueryExpr): string {
+export function pprintQueryExpr(expr: QueryExpr): string {
   if (expr instanceof Select) {
     const { _quantifier, _fields, _from, _where, _limit, _offset } = expr;
     const chunks = [
       'SELECT',
-      _quantifier === Distinct ? 'DISTINCT' : 'ALL',
+      _quantifier === All ? null : Quantifier[_quantifier].toUpperCase(),
       _fields.length === 0 ? '*' : _fields.map(([expr, name]) => name ? pprintScalarExpr(expr) + ' AS ' + escident1(name) : pprintScalarExpr(expr)).join(', '),
       _from ? 'FROM ' + _from.map(pprintTableRef).join(', ') : null,
       _where ? 'WHERE ' + pprintScalarExpr(_where) : null,
+      _limit !== null ? 'LIMIT ' + _limit : null,
+      _offset !== null ? 'OFFSET ' + _offset : null,
     ];
-    return chunks.join(' ');
+    return chunks.filter(Boolean).join(' ');
   }  
   if (expr instanceof SetOperation) {
     const { _op, _quantifier, _corresponding, _left, _right } = expr;
@@ -164,10 +170,10 @@ function pprintQueryExpr(expr: QueryExpr): string {
       pprintQueryExpr(_left),
       SetOp[_op].toUpperCase(),
       Quantifier[_quantifier].toUpperCase(),
-      Corresponding[_corresponding].toUpperCase(),
+      _corresponding === Corresponding.Corresponding ? null : Corresponding[_corresponding].toUpperCase(),
       pprintQueryExpr(_right),
     ];
-    return '(' + chunks.join(' ') + ')';
+    return 'SELECT * FROM (' + chunks.filter(Boolean).join(' ') + ')';
   }
 
   if (expr instanceof With) {
@@ -179,7 +185,7 @@ function pprintQueryExpr(expr: QueryExpr): string {
   return absurd(expr[0]);
 }
 
-function runSql(stmt: Statement, db: any): Subscribe<any> {
+export function runSql(stmt: Statement, db: any): Subscribe<any> {
   return (next, complete) => {
     const prepared = db.prepare(pprintStatement(stmt)).raw();
     const results = prepared.all();
@@ -189,40 +195,39 @@ function runSql(stmt: Statement, db: any): Subscribe<any> {
   };
 }
 
-
-function and(first: ScalarExpr, second: ScalarExpr, ...exprs: ScalarExpr[]): ScalarExpr {
+export function and(first: ScalarExpr, second: ScalarExpr, ...exprs: ScalarExpr[]): ScalarExpr {
   return exprs.reduce((acc, x) => infix(acc, 'AND', x), infix(first, 'AND', second));
 }
 
-function infix(left: ScalarExpr, op: string, right: ScalarExpr): ScalarExpr {
+export function infix(left: ScalarExpr, op: string, right: ScalarExpr): ScalarExpr {
   return new Infix(op, left, right);
 }
 
-function eq(left: ScalarExpr, right: ScalarExpr): ScalarExpr {
+export function eq(left: ScalarExpr, right: ScalarExpr): ScalarExpr {
   return infix(left, '=', right);
 }
 
-function between(expr: ScalarExpr, min: number, max: number): ScalarExpr {
+export function between(expr: ScalarExpr, min: number, max: number): ScalarExpr {
   return infix(infix(expr, '>=', of(min)), 'AND', infix(expr, '<=', of(max)));
 }
 
-function id(...name: string[]): ScalarExpr {
+export function id(...name: string[]): ScalarExpr {
   return new Ident(name);
 }
 
-function of(value: number|string): ScalarExpr {
+export function of(value: number|string|null): ScalarExpr {
   return new Pure(value);
 }
 
-function table(...name: string[]): Table {
+export function table(...name: string[]): Table {
   return new Table(name);
 }
 
-function with_<A>(names: Record<string, QueryExpr>, expr: QueryExpr<A>): With<A> {
+export function with_<A>(names: Record<string, QueryExpr>, expr: QueryExpr<A>): With<A> {
   return new With(names, expr);
 }
 
-function join(left: string|string[]|TableRef, right: string|TableRef, options: { on: ScalarExpr, type?: JoinType }): TableRef {
+export function join(left: string|string[]|TableRef, right: string|TableRef, options: { on: ScalarExpr, type?: JoinType }): TableRef {
   return new Join(
     left instanceof TableRefBase ? left : new Table(singleton(left)),
     right instanceof TableRefBase ? right : new Table(singleton(right)),
@@ -233,7 +238,7 @@ function join(left: string|string[]|TableRef, right: string|TableRef, options: {
 
 type Singleton<A> = A|A[];
 
-function select(fields: Array<string|string[]|[ScalarExpr, string|null]>, options: { from: Singleton<string|Ident|TableRef>, where?: ScalarExpr, distinct?: boolean, offset?: number, limit?: number }): Select<any> {
+export function select(fields: Array<string|string[]|ScalarExpr|[ScalarExpr, string|null]>, options: { from: Singleton<string|Ident|TableRef>, where?: ScalarExpr, distinct?: boolean, offset?: number, limit?: number }): Select<any> {
   return new Select(
     options.distinct ? Distinct : All,
     fields.map(nomalizeFields),
@@ -244,6 +249,7 @@ function select(fields: Array<string|string[]|[ScalarExpr, string|null]>, option
   );
 
   function nomalizeFields(item: typeof fields[number]): [ScalarExpr, string|null] {
+    if (item instanceof Pure) return [item, null];
     if (typeof(item) === 'string') return [id(item), null];
     if (typeof(item[0]) === 'string') return [id(...item as any), null];
     return item as any;
@@ -254,81 +260,81 @@ function select(fields: Array<string|string[]|[ScalarExpr, string|null]>, option
   }
 }
 
-function subquery<A>(expr: QueryExpr<A>): ScalarExpr<A> {
+export function subquery<A>(expr: QueryExpr<A>): ScalarExpr<A> {
   return new SubQuery('All', expr);
 }
 
-function singleton<A>(xs: A|A[]): A[] {
+export function singleton<A>(xs: A|A[]): A[] {
   return Array.isArray(xs) ? xs : [xs];
 }
 
-class Pure<A> {
+export class Pure<A> {
   readonly _A: A;
   constructor(
-    readonly _value: A,
+    public _value: A,
   ) {}
 }
 
-class Ident<A = any> {
+export class Ident<A = any> {
   readonly _A: A;
   constructor(
-    readonly _segments: string[],
+    public _segments: string[],
   ) {}
 }
 
-class Infix<A> {
+export class Infix<A> {
   readonly _A: A;
   constructor(
-    readonly _op: string,
-    readonly _left: ScalarExpr,
-    readonly _right: ScalarExpr,
+    public _op: string,
+    public _left: ScalarExpr,
+    public _right: ScalarExpr,
   ) {}
 }
 
-class Prefix<A> {
+export class Prefix<A> {
   readonly _A: A;
   constructor(
-    readonly _op: string,
-    readonly _expr: ScalarExpr,
+    public _op: string,
+    public _expr: ScalarExpr,
   ) {}
 }
 
-class Postfix<A> {
+export class Postfix<A> {
   readonly _A: A;
   constructor(
-    readonly _op: string,
-    readonly _expr: ScalarExpr,
+    public _op: string,
+    public _expr: ScalarExpr,
   ) {}
 }
 
-class App<A> {
+export class App<A> {
   readonly _A: A;
   constructor(
-    readonly _name: Ident<any>,
-    readonly _args: ScalarExpr[],
+    public _name: Ident<any>,
+    public _args: ScalarExpr[],
   ) {}
 }
 
-class In<A> {
+export class In<A> {
   readonly _A: A;
   constructor(
-    readonly _expr: ScalarExpr,
-    readonly _value: InValue,
+    public _expr: ScalarExpr,
+    public _value: InValue,
   ) {}
 }
 
-class SubQuery<A> {
+export class SubQuery<A> {
   readonly _A: A;
   constructor(
-    readonly _type: 'Exists'|'Unique'|'All',
-    readonly _expr: QueryExpr,
+    public _type: 'Exists'|'Unique'|'All',
+    public _expr: QueryExpr,
   ) {}
 }
 
 
 //-- [ QueryExpr ] -------------------------------------------------------------
 
-class QueryExprBase<A> {
+export class QueryExprBase<A> {
   with(names: Record<string, QueryExpr>): With<A> {
     return new With(names, this as any as QueryExpr);
   }
@@ -337,71 +343,76 @@ class QueryExprBase<A> {
   }
 }
 
-class Select<A> extends QueryExprBase<A> {
+export class Select<A> extends QueryExprBase<A> {
   readonly _A: A;
   constructor(
-    readonly _quantifier: Quantifier,
-    readonly _fields: Array<[ScalarExpr, string|null]>,
-    readonly _from: TableRef[],
-    readonly _where: ScalarExpr|null,
-    readonly _limit: number|null,
-    readonly _offset: number|null,
+    public _quantifier: Quantifier,
+    public _fields: Array<[ScalarExpr, string|null]>,
+    public _from: TableRef[],
+    public _where: ScalarExpr|null,
+    public _limit: number|null,
+    public _offset: number|null,
   ) { super(); }
 }
 
-class SetOperation<A> extends QueryExprBase<A> {
+export class SetOperation<A> extends QueryExprBase<A> {
   readonly _A: A;
   constructor(
-    readonly _op: SetOp,
-    readonly _quantifier: Quantifier,
-    readonly _corresponding: Corresponding,
-    readonly _left: QueryExpr,
-    readonly _right: QueryExpr,
+    public _op: SetOp,
+    public _quantifier: Quantifier,
+    public _corresponding: Corresponding,
+    public _left: QueryExpr,
+    public _right: QueryExpr,
   ) { super(); }
+
+  clone(patch?: Partial<SetOperation<A>>) {
+    const { _op, _quantifier, _corresponding, _left, _right } = { ...patch, ...this };
+    return new SetOperation(_op, _quantifier, _corresponding, _left, _right);
+  }
 }
 
-class With<A> extends QueryExprBase<A> {
+export class With<A> extends QueryExprBase<A> {
   readonly _A: A;
   constructor(
-    readonly _names: Record<string, QueryExpr>,
-    readonly _expr: QueryExpr,
+    public _names: Record<string, QueryExpr>,
+    public _expr: QueryExpr,
   ) { super(); }
 }
 
 
 //-- [ TableRef ] -------------------------------------------------------------
 
-class TableRefBase {
+export class TableRefBase {
   join(right: string|string[]|TableRef, options: { type?: JoinType, on: ScalarExpr }) {
     return new Join(this as any as TableRef, right instanceof TableRefBase ? right : new Table(singleton(right)), options.type || 'Left', options.on);
   }
 }
 
-class Table extends TableRefBase {
+export class Table extends TableRefBase {
   constructor(
-    readonly _name: string[],
+    public _name: string[],
   ) { super(); }
 }
 
-class Join extends TableRefBase {
+export class Join extends TableRefBase {
   constructor(
-    readonly _left: TableRef,
-    readonly _right: TableRef,
-    readonly _type: JoinType,
-    readonly _on: ScalarExpr,
+    public _left: TableRef,
+    public _right: TableRef,
+    public _type: JoinType,
+    public _on: ScalarExpr,
   ) { super(); }
 }
 
-class TableRefQueryExpr extends TableRefBase {
+export class TableRefQueryExpr extends TableRefBase {
   constructor(
-    readonly _expr: QueryExpr,
+    public _expr: QueryExpr,
   ) { super(); }
 }
 
-class Func extends TableRefBase {
+export class Func extends TableRefBase {
   constructor(
-    readonly _name: string[],
-    readonly _args: ScalarExpr[],
+    public _name: string[],
+    public _args: ScalarExpr[],
   ) { super(); }
 }
 
@@ -437,26 +448,51 @@ const q02 = select([['tariffs', 'id'], ['tariffs', 'name'], ['tariffs', 'service
   ),
 });
 
+const q03 = select([of('tariffs'), 'id', 'name', ['t', 'name:1']], { from: 't' }).union(
+  select([], {
+    from: ['countries', 'countries_services', 't'],
+    where: and(
+      eq(
+        id('countries', 'id'),
+        id('countries_services', 'country_id'),
+      ),
+      eq(
+        id('t', 'service_id'),
+        id('countries_services', 'service_id'),
+      ),
+    )
+  })).with({
+    t: q02,
+  });
 
-const q03 = select([['t', '*'], ['countries', 'name']], {
-  from: ['countries', 'countries_services', 't'],
-  where: and(
-    eq(
-      id('countries', 'id'),
-      id('countries_services', 'country_id'),
-    ),
-    eq(
-      id('t', 'service_id'),
-      id('countries_services', 'service_id'),
-    ),    
-  )
-}).with({
-  t: q02,
+
+const q04 = select([of('service'), 'id', 'name'], {
+  from: 'services',
+}).union(
+  select([of('country'), 'id', 'name'], { from: 'countries' })
+);
+
+
+setTimeout(() => {
+  const plugins = [prepareUnion(db)];
+  const queue = [q02, q03].map(x => prepareQueryExpr(plugins, x));
+
+  queue.forEach(q => {
+    // console.log(JSON.stringify(q));
+    console.log('// => ' + pprintStatement(q));
+    runSql(q, db)((results) => {
+      console.log(results);
+    }, () => console.log('ceomplete'));
+  });
 });
 
-
-console.log(JSON.stringify(q03));
-console.log('// => ' + pprintStatement(q03));
-runSql(q03, db)((results) => {
-  console.log(results);
-}, () => console.log('complete'));
+namespace play {
+  const and: any = 0;
+  const not: any = 0;
+  
+  export const q = x => and(
+    ['countries.id', '=', 'countries_services.country_id'],
+    ['countries.id', '=', 'countries_services.country_id'],
+    not(['countries.id', '=', 'countries_services.country_id']),
+  );
+}
