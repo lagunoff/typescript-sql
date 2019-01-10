@@ -3,9 +3,9 @@ import { prepareQueryExpr } from './prepare';
 import { prepareUnion } from './union-fields';
 // import * as esc from 'sql-escape-string';
 
-export const esc = x => x;
-export const escident = xs => xs.map(escident1).join('.');
-export const escident1 = x => x === '*' ? x : '`' + x.replace(/`/g, '\`') + '`';
+export const esc = (x: string) => x;
+export const escident = (xs: string[]) => xs.map(escident1).join('.');
+export const escident1 = (x: string) => x === '*' ? x : '`' + x.replace(/`/g, '\`') + '`';
 
 export type ScalarExpr<A = any> =
   | Pure<A>
@@ -31,7 +31,9 @@ export type Statement<A = any> =
   | Select<A>
   | With<A>
   | SetOperation<A>
+  | Pragma<A>
 ;
+
 
 export type TableRef = 
   | Table
@@ -57,7 +59,7 @@ export enum Corresponding {
 
 export type InValue<T = any> =
   | ['InList', ScalarExpr[]]
-  | ['InQuery', QueryExpr]
+  | ['InQuery', QueryExpr<T>]
 ;
 
 export type Canceller = () => void;
@@ -67,6 +69,10 @@ export function noopFunc() {}
 
 
 export function pprintStatement(stmt: Statement): string {
+  if (stmt instanceof Pragma) {
+    const { _name, _args } = stmt;
+    return 'PRAGMA ' + escident1(_name) + '(' + _args.map(pprintScalarExpr).join(', ') + ')';
+  }
   return pprintQueryExpr(stmt);
 }
 
@@ -75,10 +81,11 @@ export function pprintTableRef(table: TableRef): string {
     return escident(table._name);
   }  
   if (table instanceof Join) {
-    const { _left, _type, _right, _on } = table;
+    const { _left, _type, _right, _on, _natural } = table;
     const chunks = [
       pprintTableRef(_left),
       _type.toUpperCase(),
+      _natural ? 'NATURAL' : null,
       'JOIN',
       pprintTableRef(_right),
       _on ? 'ON ' + pprintScalarExpr(_on) : null,
@@ -92,8 +99,8 @@ export function pprintTableRef(table: TableRef): string {
 
   if (table instanceof Func) {
     const { _name, _args } = table;
-    return escident(name) + '(' + _args.map(pprintScalarExpr).join(', ') + ')';
-  }  
+    return escident(_name) + '(' + _args.map(pprintScalarExpr).join(', ') + ')';
+  }
 
   return absurd(table);
 }
@@ -130,7 +137,7 @@ export function pprintScalarExpr(expr: ScalarExpr): string {
   }
   if (expr instanceof App) {
     const { _name, _args } = expr;
-    return escident(_name) + '(' + _args.map(pprintScalarExpr).join(', ') + ')';
+    return escident(_name._segments) + '(' + _args.map(pprintScalarExpr).join(', ') + ')';
   }
   if (expr instanceof In) {
     const { _expr, _value } = expr;
@@ -151,11 +158,18 @@ export function pprintScalarExpr(expr: ScalarExpr): string {
 
 export function pprintQueryExpr(expr: QueryExpr): string {
   if (expr instanceof Select) {
-    const { _quantifier, _fields, _from, _where, _limit, _offset } = expr;
+    const { _quantifier, _selectList, _from, _where, _limit, _offset } = expr;
+    const selectList = _selectList.map(pairOrStar => {
+      if (pairOrStar instanceof Star) {
+        return pairOrStar._qualified.length === 0 ? '*' : escident(pairOrStar._qualified) + '.*';
+      }
+      const [expr, name] = pairOrStar;
+      return name ? pprintScalarExpr(expr) + ' AS ' + escident1(name) : pprintScalarExpr(expr);
+    }).join(', ');
     const chunks = [
       'SELECT',
       _quantifier === All ? null : Quantifier[_quantifier].toUpperCase(),
-      _fields.length === 0 ? '*' : _fields.map(([expr, name]) => name ? pprintScalarExpr(expr) + ' AS ' + escident1(name) : pprintScalarExpr(expr)).join(', '),
+      selectList,
       _from ? 'FROM ' + _from.map(pprintTableRef).join(', ') : null,
       _where ? 'WHERE ' + pprintScalarExpr(_where) : null,
       _limit !== null ? 'LIMIT ' + _limit : null,
@@ -195,19 +209,37 @@ export function runSql(stmt: Statement, db: any): Subscribe<any> {
   };
 }
 
-export function and(first: ScalarExpr, second: ScalarExpr, ...exprs: ScalarExpr[]): ScalarExpr {
-  return exprs.reduce((acc, x) => infix(acc, 'AND', x), infix(first, 'AND', second));
+type ExprOrIdent = ScalarExpr|string|Triple;
+interface Triple {
+  0: ExprOrIdent;
+  1: string;
+  2: ExprOrIdent;
 }
 
-export function infix(left: ScalarExpr, op: string, right: ScalarExpr): ScalarExpr {
-  return new Infix(op, left, right);
+export function normalizeExpr(x: ExprOrIdent): ScalarExpr {
+  if (x instanceof ScalarExprBase) return x;
+  if (typeof(x) === 'string') return new Ident(x.split('.'));
+  const { 0: left, 1: op, 2: right } = x;
+  return new Infix(op, normalizeExpr(left), normalizeExpr(right));
 }
 
-export function eq(left: ScalarExpr, right: ScalarExpr): ScalarExpr {
+export function and(first: ExprOrIdent, second: ExprOrIdent, ...exprs: Array<ExprOrIdent>): ScalarExpr {
+  return exprs.reduce<ScalarExpr>((acc, x) => new Infix('AND', acc, normalizeExpr(x)), new Infix('AND', normalizeExpr(first), normalizeExpr(second)));
+}
+
+export function or(first: ExprOrIdent, second: ExprOrIdent, ...exprs: Array<ExprOrIdent>): ScalarExpr {
+  return exprs.reduce<ScalarExpr>((acc, x) => new Infix('OR', acc, normalizeExpr(x)), new Infix('OR', normalizeExpr(first), normalizeExpr(second)));
+}
+
+export function infix(left: ExprOrIdent, op: string, right: ExprOrIdent): ScalarExpr {
+  return new Infix(op, normalizeExpr(left), normalizeExpr(right));
+}
+
+export function eq(left: ExprOrIdent, right: ExprOrIdent): ScalarExpr {
   return infix(left, '=', right);
 }
 
-export function between(expr: ScalarExpr, min: number, max: number): ScalarExpr {
+export function between(expr: ExprOrIdent, min: number, max: number): ScalarExpr {
   return infix(infix(expr, '>=', of(min)), 'AND', infix(expr, '<=', of(max)));
 }
 
@@ -227,33 +259,62 @@ export function with_<A>(names: Record<string, QueryExpr>, expr: QueryExpr<A>): 
   return new With(names, expr);
 }
 
-export function join(left: string|string[]|TableRef, right: string|TableRef, options: { on: ScalarExpr, type?: JoinType }): TableRef {
+export function pragma(name: string, ...args: ExprOrIdent[]): Pragma {
+  return new Pragma(name, args.map(normalizeExpr));
+}
+
+type JoinOptions = { type?: JoinType, on?: ScalarExpr|Triple, natural?: boolean };
+
+export function join(left: string|string[]|TableRef, right: string|string[]|TableRef, options: JoinOptions): TableRef {
   return new Join(
     left instanceof TableRefBase ? left : new Table(singleton(left)),
     right instanceof TableRefBase ? right : new Table(singleton(right)),
     options.type || 'Left',
-    options.on
+    options.natural || false,
+    options.on ? normalizeExpr(options.on) : void 0,
   );
 }
 
 type Singleton<A> = A|A[];
+type SelectListItem = string|ScalarExpr|[ScalarExpr|string, string|null];
+type SelectOptions = { from?: Singleton<string|TableRef>, where?: ScalarExpr, distinct?: boolean, offset?: number, limit?: number };
 
-export function select(fields: Array<string|string[]|ScalarExpr|[ScalarExpr, string|null]>, options: { from: Singleton<string|Ident|TableRef>, where?: ScalarExpr, distinct?: boolean, offset?: number, limit?: number }): Select<any> {
+export function select(...args: Array<SelectListItem|SelectOptions>): Select<any> {
+  type Acc = { selectList: Select<any>['_selectList'], options: SelectOptions };
+  const { selectList, options } = args.reduce<Acc>((acc, x) => {
+    if (typeof(x) === 'string') {
+      const segments = x.split('.');
+      const lastSegment = segments[segments.length - 1];
+      if (lastSegment === '*') acc.selectList.push(new Star(segments.slice(0, segments.length - 1)));
+      else acc.selectList.push([new Ident(segments), null]);
+    }
+    if (x instanceof ScalarExprBase) {
+      acc.selectList.push([x, null]);
+    }
+    if (Array.isArray(x)) {
+      const [val, col] = x;
+      if (typeof(val) === 'string') {
+        const segments = val.split('.');
+        acc.selectList.push([new Ident(segments), col]);
+      }
+      if (val instanceof ScalarExprBase) {
+        acc.selectList.push([val, col]);
+      }
+    }
+    else if (typeof(x) === 'object') {
+      Object.assign(acc.options, x);
+    }
+    return acc;
+  }, { selectList: [], options: {} });
+  
   return new Select(
     options.distinct ? Distinct : All,
-    fields.map(nomalizeFields),
-    Array.isArray(options.from) ? options.from.map(nomalizeTable) : [nomalizeTable(options.from)],
+    selectList,
+    options.from === undefined ? [] : Array.isArray(options.from) ? options.from.map(nomalizeTable) : [nomalizeTable(options.from)],
     options.where || null,
     options.offset || null,
-    options.limit || null    
+    options.limit || null,
   );
-
-  function nomalizeFields(item: typeof fields[number]): [ScalarExpr, string|null] {
-    if (item instanceof Pure) return [item, null];
-    if (typeof(item) === 'string') return [id(item), null];
-    if (typeof(item[0]) === 'string') return [id(...item as any), null];
-    return item as any;
-  }
   
   function nomalizeTable(item: string|Ident|TableRef): TableRef {
     return item instanceof TableRefBase ? item : new Table(item instanceof Ident ? item._segments : [item]);
@@ -268,66 +329,83 @@ export function singleton<A>(xs: A|A[]): A[] {
   return Array.isArray(xs) ? xs : [xs];
 }
 
-export class Pure<A> {
+
+export class ScalarExprBase<A> {
+  readonly _A: A;
+}
+
+export class Pure<A> extends ScalarExprBase<A> {
   readonly _A: A;
   constructor(
     public _value: A,
-  ) {}
+  ) { super(); }
 }
 
-export class Ident<A = any> {
+export class Ident<A = any> extends ScalarExprBase<A> {
   readonly _A: A;
   constructor(
     public _segments: string[],
-  ) {}
+  ) { super(); }
 }
 
-export class Infix<A> {
+export class Infix<A> extends ScalarExprBase<A> {
   readonly _A: A;
   constructor(
     public _op: string,
     public _left: ScalarExpr,
     public _right: ScalarExpr,
-  ) {}
+  ) { super(); }
 }
 
-export class Prefix<A> {
+export class Prefix<A> extends ScalarExprBase<A> {
   readonly _A: A;
   constructor(
     public _op: string,
     public _expr: ScalarExpr,
-  ) {}
+  ) { super(); }
 }
 
-export class Postfix<A> {
+export class Postfix<A> extends ScalarExprBase<A> {
   readonly _A: A;
   constructor(
     public _op: string,
     public _expr: ScalarExpr,
-  ) {}
+  ) { super(); }
 }
 
-export class App<A> {
+export class App<A> extends ScalarExprBase<A> {
   readonly _A: A;
   constructor(
     public _name: Ident<any>,
     public _args: ScalarExpr[],
-  ) {}
+  ) { super(); }
 }
 
-export class In<A> {
+export class In<A> extends ScalarExprBase<A> {
   readonly _A: A;
   constructor(
     public _expr: ScalarExpr,
     public _value: InValue,
-  ) {}
+  ) { super(); }
 }
 
-export class SubQuery<A> {
+export class SubQuery<A> extends ScalarExprBase<A> {
   readonly _A: A;
   constructor(
     public _type: 'Exists'|'Unique'|'All',
     public _expr: QueryExpr,
+  ) { super(); }
+}
+
+
+//-- [ Statement ] -------------------------------------------------------------
+
+export class Pragma<A = any> {
+  readonly _A: A;
+  
+  constructor(
+    readonly _name: string,
+    readonly _args: ScalarExpr[],
   ) {}
 }
 
@@ -347,11 +425,11 @@ export class Select<A> extends QueryExprBase<A> {
   readonly _A: A;
   constructor(
     public _quantifier: Quantifier,
-    public _fields: Array<[ScalarExpr, string|null]>,
+    public _selectList: Array<[ScalarExpr, string|null]|Star>,
     public _from: TableRef[],
     public _where: ScalarExpr|null,
-    public _limit: number|null,
     public _offset: number|null,
+    public _limit: number|null,
   ) { super(); }
 }
 
@@ -379,12 +457,18 @@ export class With<A> extends QueryExprBase<A> {
   ) { super(); }
 }
 
+export class Star {
+  constructor(
+    public _qualified: string[],
+  ) {}
+}
+
 
 //-- [ TableRef ] -------------------------------------------------------------
 
 export class TableRefBase {
-  join(right: string|string[]|TableRef, options: { type?: JoinType, on: ScalarExpr }) {
-    return new Join(this as any as TableRef, right instanceof TableRefBase ? right : new Table(singleton(right)), options.type || 'Left', options.on);
+  join(right: string|string[]|TableRef, options: JoinOptions = {}) {
+    return join(this as any, right, options);
   }
 }
 
@@ -399,7 +483,8 @@ export class Join extends TableRefBase {
     public _left: TableRef,
     public _right: TableRef,
     public _type: JoinType,
-    public _on: ScalarExpr,
+    public _natural: boolean,
+    public _on?: ScalarExpr,
   ) { super(); }
 }
 
@@ -416,6 +501,21 @@ export class Func extends TableRefBase {
   ) { super(); }
 }
 
+export class TableDefinition {
+  constructor(
+    public _name: string,
+    public _columns: ColumnDefinition[],
+  ) { }
+}
+
+export class ColumnDefinition {
+  constructor(
+    public _name: string,
+    public _type: string,
+    public _default: string,
+  ) { }
+}
+
 declare const __dirname:any;
 declare const require:any;
 const Sqlite3 = require('better-sqlite3');
@@ -424,58 +524,57 @@ const db = new Sqlite3(path.join(__dirname, '../elk.sqlite'));
 
 const { All, Distinct } = Quantifier;
 
-const q01 = select([['tariffs', 'id'], ['tariffs', 'name'], ['services', 'name']], {
-  from: table('tariffs').join('services', { on: infix(id('tariffs', 'service_id'), '=', id('services', 'id')) }),
+const q01 = select('tariffs.id', 'tariffs.name', 'services.name', {
+  from: table('tariffs').join('services', { on: ['tariffs.service_id', '=', 'services.id'] }),
   
-  where: infix(
-    between(id('tariffs', 'id'), 0, 1000),
-    'AND',
-    infix(id('tariffs', 'is_deleted'), '!=', of(1)),
+  where: and(
+    between('tariffs.id', 0, 1000),
+    ['tariffs.is_deleted', '!=', of(1)],
   ),
 });
 
-const qcountries = subquery(select(['name', 'id'], { from: 'countries', where: eq(id('countries', 'id'), id('tariffs')) }));
+// const qcountries = subquery(select(['name', 'id'], { from: 'countries', where: eq(id('countries', 'id'), id('tariffs')) }));
 
 
-const q02 = select([['tariffs', 'id'], ['tariffs', 'name'], ['tariffs', 'service_id'], ['services', 'name']], {
+const q02 = select('tariffs.id', 'tariffs.name', 'tariffs.service_id', 'services.name', {
   from: table('tariffs')
-    .join('services', { on: infix(id('tariffs', 'service_id'), '=', id('services', 'id')) }),
+    .join('services', { on: ['tariffs.service_id', '=', 'services.id'] }),
   
-  where: infix(
-    between(id('tariffs', 'id'), 0, 1000),
-    'AND',
-    infix(id('tariffs', 'is_deleted'), '!=', of(1)),
+  where: and(
+    between('tariffs.id', 0, 1000),
+    ['tariffs.is_deleted', '!=', of(1)],
   ),
 });
 
-const q03 = select([of('tariffs'), 'id', 'name', ['t', 'name:1']], { from: 't' }).union(
-  select([], {
+const q03 = select(
+  of('tariffs'), 'id', 'name', 't.name:1', { from: 't' }
+).union(
+  select(of('countries'), 'countries.name', of(null), of(null), {
     from: ['countries', 'countries_services', 't'],
     where: and(
-      eq(
-        id('countries', 'id'),
-        id('countries_services', 'country_id'),
-      ),
-      eq(
-        id('t', 'service_id'),
-        id('countries_services', 'service_id'),
-      ),
+      ['countries.id', '=', 'countries_services.country_id'],
+      ['t.service_id', '=', 'countries_services.service_id'],
     )
-  })).with({
-    t: q02,
-  });
+  })
+).with({
+  t: q02,
+});
 
 
-const q04 = select([of('service'), 'id', 'name'], {
-  from: 'services',
-}).union(
-  select([of('country'), 'id', 'name'], { from: 'countries' })
-);
+const q04 = select(of('service'), 'services.id', 'services.name', 'countries.name', {
+  from: ['services', 'countries_services', 'countries'],
+  limit: 5,
+  where: and(
+    ['services.id', '=', 'countries_services.service_id'],
+    ['countries_services.country_id', '=', 'countries.id'],
+  ),
+});
 
+const q05 = pragma('table_info', 'countries');
 
 setTimeout(() => {
   const plugins = [prepareUnion(db)];
-  const queue = [q02, q03].map(x => prepareQueryExpr(plugins, x));
+  const queue = [q04, q05]; //.map(x => prepareQueryExpr(plugins, x));
 
   queue.forEach(q => {
     // console.log(JSON.stringify(q));
@@ -495,4 +594,16 @@ namespace play {
     ['countries.id', '=', 'countries_services.country_id'],
     not(['countries.id', '=', 'countries_services.country_id']),
   );
+}
+
+
+namespace privileges {
+  type CRUD = 'C'|'R'|'U'|'D';
+  type Access =
+    | { tag: 'Deny' }
+    | { tag: 'Allow' }
+    | { tag: 'Columns', table: string, columns: string[], access: CRUD[] }
+    | { tag: 'Rows', table: string, access: ScalarExpr<boolean> }
+    | { tag: 'Not', access: Access }
+    | { tag: 'And', access: Access[] }
 }

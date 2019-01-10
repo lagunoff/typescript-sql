@@ -1,5 +1,5 @@
 import { absurd } from './types';
-import { QueryExpr, Select, SetOperation, With, TableRef, Table, TableRefQueryExpr, Func, Join, escident, Statement, SetOp, select, id, of, ScalarExpr } from './index';
+import { QueryExpr, Select, SetOperation, With, TableRef, Table, TableRefQueryExpr, Func, Join, escident, SetOp, select, of, Star } from './index';
 
 
 export function prepareUnion(db: any) {
@@ -20,7 +20,7 @@ export function prepareUnion(db: any) {
 
     function addColumns(n: number, expr: QueryExpr): QueryExpr {
       const nulls = Array.from(Array(n)).map(() => of(null));
-      return select([[id('*'), null], ...nulls], { from: new TableRefQueryExpr(expr) });
+      return select('*', ...nulls, { from: new TableRefQueryExpr(expr) });
     }
   }
 
@@ -30,11 +30,11 @@ export function prepareUnion(db: any) {
 
 function numFields(expr: QueryExpr, db: any): number {
   if (expr instanceof Select) {
-    const { _fields, _from } = expr;
-    if (_fields.length === 0) {
-      return _from.reduce((acc, f) => numFieldsTableRef(f, db) + acc, 0);
-    }
-    return _fields.length;
+    const { _selectList, _from } = expr;
+    return _selectList.reduce((acc, x) => {
+      if (x instanceof Star) return _from.reduce((acc, f) => numFieldsTableRef(f, db) + acc, acc);
+      return acc + 1;
+    }, 0);
   }  
   if (expr instanceof SetOperation) {
     const { _left } = expr;

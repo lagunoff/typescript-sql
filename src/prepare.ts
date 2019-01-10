@@ -90,8 +90,10 @@ export function prepareQueryExpr(plugins: Plugin[], expr: QueryExpr): QueryExpr 
   const next = plugins.reduce((acc, p) => p.prepareQueryExpr ? p.prepareQueryExpr(acc) : acc, expr);
 
   if (next instanceof Select) {
-    const { _fields, _from, _where } = next;
-    _fields.forEach(pair => (pair[0] = prepareScalarExpr(plugins, pair[0])));
+    const { _selectList, _from, _where } = next;
+    _selectList.forEach(pair => {
+      if (Array.isArray(pair)) pair[0] = prepareScalarExpr(plugins, pair[0])
+    });
     next._where = _where ? prepareScalarExpr(plugins, _where) : _where;
     for (let i = 0; i < _from.length; i++) _from[i] = prepareTableRef(plugins, _from[i]);
     return next;
