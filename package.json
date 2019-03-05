@@ -1,7 +1,8 @@
 {
   "devDependencies": {},
   "dependencies": {
+    "@types/node": "^10.12.18",
     "better-sqlite3": "^5.2.1",
-    "sql-escape-string": "^1.1.0"
+    "jison": "^0.4.18"
   }
 }
