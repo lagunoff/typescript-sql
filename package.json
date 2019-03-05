@@ -1,8 +1,12 @@
 {
-  "devDependencies": {},
-  "dependencies": {
-    "@types/node": "^10.12.18",
-    "better-sqlite3": "^5.2.1",
+  "name": "typescript-sql",
+  "version": "0.0.1",
+  "description": "SQL parser for typescript",
+  "main": "index.js",
+  "repository": "git@github.com:lagunoff/typescript-sql.git",
+  "author": "Vladislav Lagunoff <vlad.lagunoff@gmail.com>",
+  "license": "MIT",
+  "devDependencies": {
     "jison": "^0.4.18"
   }
 }
