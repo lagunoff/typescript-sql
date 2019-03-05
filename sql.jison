@@ -1,6 +1,12 @@
 %start ast
+%{
+function unescapeSingleQuote(s) {
+  return s.replace(/^'/, '').replace(/'$/, '');
+}
+%}
 %lex
 %%
+\-\-[^\n]*\n?   {/* ignore single-line comment */}
 \s+                   {/* ignore spaces */}
 "\n"                  { return 'NEWLINE'; }
 "OR"                  {return 'OR';}
@@ -277,6 +283,7 @@ a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z {return 'simple_latin_lower_
 "@EXPR:"                  { return 'START_EXPR'; }
 "@DATETYPE:"                  { return 'START_DATETYPE'; }
 "@MODULE:"                  { return 'START_MODULE'; }
+"@EMPTY:"                  { return 'START_EMPTY'; }
 /lex
 
 %%
@@ -284,10 +291,12 @@ a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z {return 'simple_latin_lower_
 ast
 	: START_EXPR expr EOF {return $2;}
 	| START_MODULE module EOF {return $2;}
+	| START_EMPTY EOF {return $2;}
+	| START_DATETYPE datetype EOF {return $2;}
 	;
 
 expr : signed_integer | character_string_literal | identifier;
-/* */
+
 // -----------------------------------------------------------------------------
 // Language grammar
 // -----------------------------------------------------------------------------
@@ -303,7 +312,8 @@ SQL_language_character
 
 simple_latin_letter 
 	: simple_latin_upper_case_letter
-	| simple_latin_lower_case_letter;
+	| simple_latin_lower_case_letter
+	;
 
 
 SQL_special_character 
@@ -327,7 +337,8 @@ SQL_special_character
 	| EQUALS_OPERATOR
 	| QUESTION_MARK
 	| UNDERSCORE
-	| VERTICAL_BAR;
+	| VERTICAL_BAR
+	;
 
 SQL_embedded_language_character : LEFT_BRACKET | RIGHT_BRACKET;
 
@@ -338,7 +349,7 @@ token
 	;
 
 nondelimiter_token 
-	: regular_identifier
+	: identifier_body
 	| key_word
 	| unsigned_numeric_literal
 	| national_character_string_literal
@@ -377,8 +388,8 @@ exact_numeric_literal
         ;
 
 unsigned_integer
-        : DIGIT {$$ = $1;}
-        | unsigned_integer DIGIT {$$ = $1 + $2;}
+        : DIGIT {$$=$1;}
+        | unsigned_integer DIGIT {$$=$1+$2;}
         ;
 
 // mantissa : exact_numeric_literal;
@@ -390,7 +401,7 @@ exponent : signed_integer;
 
 signed_integer
         : unsigned_integer
-        | sign unsigned_integer {$$ = $1 + $2;}
+        | sign unsigned_integer {$$=$1+$2;}
         ;
 
 sign : PLUS_SIGN | MINUS_SIGN;
@@ -465,8 +476,9 @@ delimiter_token
         ;
 
 character_string_literal
-        : SINGLE_QUOTED_STRING {$$=$1}
-        | character_string_literal separator SINGLE_QUOTED_STRING {$$=$1 + $3}
+        : single_quoted_string {$$=$1}
+        | character_string_literal single_quoted_string {$$=$1+$2}
+        | character_string_literal separator single_quoted_string {$$=$1+$3}
         ;
         // : quote quote {$$=""}
         // | quote character_representation_many quote {$$=$2}
@@ -475,6 +487,10 @@ character_string_literal
         // | introducercharacter_set_specification quote character_representation_many quote {$$=$3}
         // | introducercharacter_set_specification quote character_representation_many quote character_representation_tail_many {$$=$3 + $5}
         // ;
+
+single_quoted_string
+	: SINGLE_QUOTED_STRING {$$=unescapeSingleQuote($1)}
+	;
 
 character_representation_tail
         : separator quote quote {$$=""}
@@ -490,7 +506,8 @@ character_set_specification
 	| implementation-defined_character_repertoire_name
 	| user-defined_character_repertoire_name
 	| standard_universal_character_form-of-use_name
-	| implementation-defined_universal_character_form-of-use_name;
+	| implementation-defined_universal_character_form-of-use_name
+	;
 
 standard_character_repertoire_name : character_set_name;
 
@@ -502,10 +519,10 @@ catalog_name : identifier;
 
 identifier
         : actual_identifier {$$={ tag: 'identifier', value: $1 }}
-        | introducercharacter_set_specification actual_identifier {$$={ tag: 'identifier', value: $2 }}
+        | introducer character_set_specification actual_identifier {$$={ tag: 'identifier', value: $2 }}
         ;
 
-actual_identifier : regular_identifier | delimited_identifier;
+actual_identifier : identifier_body | delimited_identifier;
 
 delimited_identifier : DOUBLE_QUOTED_IDENTIFIER; // double_quote delimited_identifier_body double_quote
 
