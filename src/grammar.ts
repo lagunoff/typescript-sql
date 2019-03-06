@@ -1,26 +1,6 @@
 import { Parser } from 'jison';
 import { rule, tuple, many, scanner, optional, many1, oneOf } from './dsl';
 
-const SQL_language_character = scanner('SQL_language_character', '');
-const SQL_embedded_language_character = scanner('SQL_embedded_language_character', '');
-
-
-// https://github.com/ronsavage/SQL/blob/master/sql-92.bnf#L77
-// <SQL terminal character> ::=
-// 		<SQL language character>
-// 	|	<SQL embedded language character>
-export const SQL_terminal_character = rule('SQL_terminal_character', [
-  SQL_language_character,
-  SQL_embedded_language_character,
-]);
-
-
-const data_type = [
-  tuple(SQL_terminal_character, many('CHARACTER', 'SET', SQL_terminal_character))
-    .dimap(x => x, x => x),
-  
-];
-
 // BNF Grammar for ISO/IEC 9075:1992 - Database Language SQL (SQL-92)
 // ==================================================================
 
@@ -143,53 +123,76 @@ const data_type = [
 // 	|	<vertical bar>
 
 // <space> ::= !! space character in character set in use
-const space = scanner('space', '[^\\S\\n]');
+const space = scanner('space', /[^\\S\\n]/);
 
 // <double quote> ::= "
+const double_quote = scanner('double_quote', '"');
 
 // <percent> ::= %
+const percent = scanner('percent', '%');
 
 // <ampersand> ::= &
+const ampersand = scanner('ampersand', '&');
 
 // <quote> ::= '
+const quote = scanner('quote', '\'');
 
 // <left paren> ::= (
+const left_paren = scanner('left_paren', '(');
 
 // <right paren> ::= )
+const right_paren = scanner('right_paren', ')');
 
 // <asterisk> ::= *
+const asterisk = scanner('asterisk', '*');
 
 // <plus sign> ::= +
+const plus_sign = scanner('plus_sign', '+');
 
 // <comma> ::= ,
+const comma = scanner('comma', ',');
 
 // <minus sign> ::= -
+const minus_sign = scanner('minus_sign', '-');
 
 // <period> ::= .
+const period = scanner('period', '.');
 
 // <solidus> ::= /
+const solidus = scanner('solidus', '/');
 
 // <colon> ::= :
+const colon = scanner('colon', ':');
 
 // <semicolon> ::= ;
+const semicolon = scanner('semicolon', ';');
 
 // <less than operator> ::= <
+const less_than_operator = scanner('less_than_operator', '<');
 
 // <equals operator> ::= =
+const equals_operator = scanner('equals_operator', '=');
 
 // <greater than operator> ::= >
+const greater_than_operator = scanner('greater_than_operator', '>');
 
 // <question mark> ::= ?
+const question_mark = scanner('question_mark', '?');
 
 // <underscore> ::= _
+const underscore = scanner('underscore', '_');
 
 // <vertical bar> ::= |
-
-// <SQL embedded language character> ::= <left bracket> | <right bracket>
+const vertical_bar = scanner('vertical_bar', '|');
 
 // <left bracket> ::= [
+const left_bracket = scanner('left_bracket', '[');
 
 // <right bracket> ::= ]
+const right_bracket = scanner('right_bracket', ']');
+
+// <SQL embedded language character> ::= <left bracket> | <right bracket>
+const SQL_embedded_language_character = rule('SQL_embedded_language_character', [ left_bracket, right_bracket ]);
 
 // <token> ::=
 // 		<nondelimiter token>
@@ -300,7 +303,7 @@ const space = scanner('space', '[^\\S\\n]');
 // <quote symbol> ::= <quote> <quote>
 
 // <comment> ::= <comment introducer> [ <comment character>... ] <newline>
-const comment = scanner('comment', '\-\-[^\\n]*\n?');
+const comment = scanner('comment', /--[^\n]*\n/);
 
 // <comment introducer> ::= <minus sign><minus sign> [<minus sign>...]
 

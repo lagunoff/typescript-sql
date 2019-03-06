@@ -37,7 +37,7 @@ export class Tuple<T> extends ExprBase<T>{
 export class Scanner<T> extends ExprBase<T>{
   constructor(
     readonly _name: string,
-    readonly _regexp: string,
+    readonly _regexp: string|RegExp,
     readonly _ignore: boolean,
   ) { super(); }
 }
@@ -105,7 +105,7 @@ export function many1(...xs: any[]): Quantifier<any> {
 export function optional<T>(expr: Expr<T>): Quantifier<T|null> {
   return new Quantifier(expr, 'optional');
 }
-export function scanner(name: string, regex: string, ignore: boolean = false): Scanner<string> {
+export function scanner(name: string, regex: string|RegExp, ignore: boolean = false): Scanner<string> {
   return new Scanner(name, regex, ignore);
 }
 
