@@ -1,6 +1,20 @@
 import { Parser } from 'jison';
 import { rule, tuple, many, scanner, optional, many1, oneOf } from './dsl';
 
+interface Lazy {
+  'a': typeof a;
+  'b': typeof b;
+}
+
+function lazy<K extends keyof Lazy>(k: K): Lazy[K] {
+  throw 0;
+}
+
+const b = lazy('a') + 0;
+const a = 0;
+export const c = 'c';
+export const route = { tag: 'Home', page: 10 };
+
 // BNF Grammar for ISO/IEC 9075:1992 - Database Language SQL (SQL-92)
 // ==================================================================
 
