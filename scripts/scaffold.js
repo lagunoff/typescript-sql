@@ -132,19 +132,19 @@ input.split('\n\n').forEach($1 => {
   const expr = dsl.comment(parseRule($1), $1);
   const name = dsl.getName(expr);
   if (name in rules) throw new Error(`name ${esc(name)} was already taken`);
-  rules[name] = dsl.replaceOptionalMany1(expr);
+  rules[name] = dsl.addSpaces(dsl.replaceOptionalMany1(dsl.customRewrites(expr)));
 });
 const exprs = Object.keys(rules);
 
-const gp01 = dsl.makeGP(rules);
-const [components, gp02] = dsl.computeKosaraju(gp01);
-const componentsinv = dsl.inverseGP(components);
-const gp02inv = dsl.inverseGP(gp02);
-const roots = Array.prototype.concat.apply([], ['select_statement__single_row'].map(k => Object.keys(componentsinv[k])));
-const root_components = dsl.transitiveEdges(gp02inv, roots);
-const sorted_components = dsl.topologicalSort(components, gp02);
-const componentsWeights = sorted_components.reduce((acc, x, idx) => (acc[x] = idx, acc), {});
-const sorted_roots = root_components.sort((a, b) => componentsWeights[a] > componentsWeights[b] ? 1 : componentsWeights[a] < componentsWeights[b] ? -1 : 0);
+// const gp01 = dsl.makeGP(rules);
+// const [components, gp02] = dsl.computeKosaraju(gp01);
+// const componentsinv = dsl.inverseGP(components);
+// const gp02inv = dsl.inverseGP(gp02);
+// const roots = Array.prototype.concat.apply([], ['select_statement__single_row'].map(k => Object.keys(componentsinv[k])));
+// const root_components = dsl.transitiveEdges(gp02inv, roots);
+// const sorted_components = dsl.topologicalSort(components, gp02);
+// const componentsWeights = sorted_components.reduce((acc, x, idx) => (acc[x] = idx, acc), {});
+// const sorted_roots = root_components.sort((a, b) => componentsWeights[a] > componentsWeights[b] ? 1 : componentsWeights[a] < componentsWeights[b] ? -1 : 0);
 
 // console.log(roots);
 // console.log(JSON.stringify(dsl.transitiveEdges(gp02inv, roots), null, 2));
@@ -155,16 +155,10 @@ const sorted_roots = root_components.sort((a, b) => componentsWeights[a] > compo
 // console.log(JSON.stringify(gp01, null, 2))
 
 // console.log(`import { rule, tuple, many, scanner, optional, many1, oneOf } from '../src/dsl';\n`);
-// console.log(`const ref = x => 0 as any;\n`);
-sorted_components.forEach(component => {
-  const isgroup = Object.keys(components[component]).length > 1;
-  isgroup && console.log('//-- <' + component + '>')
-  for (const rule in components[component]) {
-    const r = rules[rule];
-    console.log(dsl.pprintPEG(rules[rule], true));
-    isgroup && console.log();
-  }
-  isgroup && console.log('// -- </' + component + '>')
+console.log(`_\n  = separator\n`);
+exprs.forEach(rule => {
+  console.log(dsl.commentlines(dsl.pprintExpr(rules[rule], false)));
+  console.log(dsl.pprintPEG(rules[rule], true));
   console.log();
 });
 

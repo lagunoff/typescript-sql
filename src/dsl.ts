@@ -170,13 +170,16 @@ export function pprintExpr<A>(expr: Expr<A>, topLevel = false, lazyrefs = false,
   return absurd(expr);
 }
 
+
 export function pprintPEG<A>(expr: Expr<A>, topLevel = false): string {
-  if (expr instanceof Pure) return JSON.stringify(expr._value);
+  const withParens = expr => str => needParens(expr, false) ? '(' + str + ')' : str;
+  
+  if (expr instanceof Pure) return esc(expr._value);
   if (expr instanceof Scanner) throw new Error(`pprintPEG is not defined for 'Scanner'`);
-  if (expr instanceof Tuple) return expr._values.map(x => pprintPEG(x)).join(' ')
+  if (expr instanceof Tuple) return expr._values.map(x => withParens(x)(pprintPEG(x))).join(' ')
   if (expr instanceof OneOf) {
-    if (!topLevel) return expr._alternatives.map(x => pprintPEG(x, false)).join('\n  / ');
-    return expr._alternatives.map(x => pprintPEG(x, false)).join(' / ');
+    if (topLevel) return expr._alternatives.map(x => pprintPEG(x)).join('\n  / ');
+    return expr._alternatives.map(x => pprintPEG(x)).join(' / ');
   }
   if (expr instanceof Hole) return '"<hole: ' + expr._message + '>"'
   if (expr instanceof Ref) return expr._name;
@@ -185,17 +188,17 @@ export function pprintPEG<A>(expr: Expr<A>, topLevel = false): string {
       return pprintPEG(expr._expr, topLevel);
     }
     if (expr._annotation.tag === 'Name') {
-      if (topLevel) return expr._annotation.name + '\n  = ' + pprintPEG(expr._expr, false);
+      if (topLevel) return expr._annotation.name + '\n  = ' + pprintPEG(expr._expr, topLevel);
       return pprintPEG(expr._expr, topLevel);
     }
     if (expr._annotation.tag === 'Optional') {
-      return '(' + pprintPEG(expr._expr, topLevel) + ')?';
+      return withParens(expr._expr)(pprintPEG(expr._expr)) + '?';
     }
     if (expr._annotation.tag === 'Many1') {
-      return '(' + pprintPEG(expr._expr, topLevel) + ')+';
+      return withParens(expr._expr)(pprintPEG(expr._expr)) + '+';
     }
     if (expr._annotation.tag === 'Many') {
-      return '(' + pprintPEG(expr._expr, topLevel) + ')*';
+      return withParens(expr._expr)(pprintPEG(expr._expr)) + '*';
     }
     if (expr._annotation.tag === 'Dimap') {
       return pprintPEG(expr._expr, topLevel);
@@ -203,14 +206,69 @@ export function pprintPEG<A>(expr: Expr<A>, topLevel = false): string {
     return absurd(expr._annotation);
   }
   return absurd(expr);
-}
 
+  function needParens<A>(expr: Expr<A>, topLevel: boolean) {
+    if (expr instanceof Tuple) return !topLevel && expr._values.length !== 1;
+    if (expr instanceof OneOf) return !topLevel && expr._alternatives.length !== 1;
+    if (expr instanceof Annot) {
+      if (expr._annotation.tag === 'Optional' || expr._annotation.tag === 'Many' || expr._annotation.tag === 'Many1') return false;
+      return needParens(expr._expr, topLevel);
+    }
+    return false;
+  }
+}
 function esc(x: any) {
   return JSON.stringify(x);
 }
-const commentlines = x => '// ' + x.split('\n').join('\n// ');
+export const commentlines = x => '// ' + x.split('\n').join('\n// ');
 
 
+export function addSpaces<A>(expr: Expr<A>): Expr<A> {
+  if (expr instanceof Tuple) {
+    expr._values.forEach((x, idx, arr) => arr[idx] = addSpaces(x));
+    for (let i=1; i < expr._values.length; i++) {
+      const a = expr._values[i - 1], b = expr._values[i];
+      const tripleOrTuple = addBetween(a, b);
+      if (tripleOrTuple.length === 3) expr._values.splice(i, 0, tripleOrTuple[1]);
+      i++;
+    }
+    return expr;
+  }
+  if (expr instanceof OneOf) {
+    expr._alternatives.forEach((x, idx, arr) => arr[idx] = addSpaces(x));
+    return expr;
+  }
+  if (expr instanceof Annot) {
+    expr._expr = addSpaces(expr._expr);
+    return expr;
+  }
+  return expr;
+
+  function addBetween(a: Expr, b: Expr): Expr[] {
+    if (isGroup(a) && isGroup(b)) return [a, addLeading(b)];
+    if (!isGroup(a) && !isGroup(b)) return [a, ref('_'), b];
+    if (isGroup(a) && !isGroup(b)) return [addEnd(a), b];
+    if (!isGroup(a) && isGroup(b)) return [a, addLeading(b)];
+    return [a, b];
+  }
+
+  function addEnd(a: Expr) {
+    if (a instanceof Annot) return (a._expr = addEnd(a._expr), a);
+    if (a instanceof Tuple) return (a._values.push(ref('_')), a);
+    return tuple(a, ref('_'));
+  }
+  
+  function addLeading(a: Expr) {
+    if (a instanceof Annot) return (a._expr = addLeading(a._expr), a);
+    if (a instanceof Tuple) return (a._values.unshift(ref('_')), a);
+    return tuple(ref('_'), a);
+  }
+
+  function isGroup(a: Expr): boolean {
+    if (a instanceof Annot && (a._annotation.tag === 'Optional' || a._annotation.tag === 'Many' || a._annotation.tag === 'Many1')) return true;
+    return false;
+  }
+}
 
 
 export function of<T>(x: T): Pure<T> {
@@ -392,6 +450,7 @@ export function transitiveEdges(gp: GP, edges: string[]): string[] {
 }
 
 
+// rule+? -> rule*
 export function replaceOptionalMany1(expr: Expr): Expr {
   return go(expr);
   
@@ -400,10 +459,10 @@ export function replaceOptionalMany1(expr: Expr): Expr {
     if (expr instanceof OneOf) { expr._alternatives.forEach((x, idx, xs) => xs[idx] = go(x)); return expr; }
     if (expr instanceof Annot) {
       if (expr._annotation.tag === 'Optional'
-          && expr._expr instanceof Annot
+          && (expr._expr instanceof Annot)
           && expr._expr._annotation.tag === 'Many1'
          )
-        return new Annot(expr._expr._expr, { tag: 'Many' });
+        return new Annot(go(expr._expr._expr), { tag: 'Many' });
       expr._expr = go(expr._expr);
       return expr;
     }
@@ -411,14 +470,27 @@ export function replaceOptionalMany1(expr: Expr): Expr {
   }  
 }
 
+
+export function customRewrites<A>(expr: Expr<A>): Expr<A> {
+  if (expr instanceof Annot && expr._annotation.tag === 'Name' && expr._annotation.name === 'term') {
+    return rule<any>("term", tuple(ref('factor'), optional(tuple(oneOf(ref('asterisk'), ref('solidus'))), ref('factor'))));
+  }
+  if (expr instanceof Annot && expr._annotation.tag === 'Name' && expr._annotation.name === 'numeric_value_expression') {
+    return rule<any>("numeric_value_expression", tuple(ref('term'), optional(tuple(oneOf(ref('plus_sign'), ref('minus_sign'))), ref('term'))));
+  }
+  if (expr instanceof Annot) return (expr._expr = customRewrites(expr._expr), expr);
+  if (expr instanceof Tuple) { expr._values.forEach((x, idx, xs) => xs[idx] = customRewrites(x)); return expr; }
+  if (expr instanceof OneOf) { expr._alternatives.forEach((x, idx, xs) => xs[idx] = customRewrites(x)); return expr; }
+  return expr;
+}
+
+
 export function removeSingleRef(expr: Expr): Expr {
   return go(expr);
   
   function go(expr: Expr): Expr {
     if (expr instanceof Annot) {
-      if (expr._annotation.tag === 'Name'
-          && expr._expr instanceof Ref
-         )
+      if (expr._annotation.tag === 'Name' && expr._expr instanceof Ref)
         return expr._expr
       expr._expr = go(expr._expr);
       return expr;
