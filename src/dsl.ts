@@ -1,3 +1,5 @@
+import { absurd } from "./types";
+
 export type InferA<E>
   = E extends string ? E 
   : E extends Expr<infer A> ? A
@@ -160,15 +162,55 @@ export function pprintExpr<A>(expr: Expr<A>, topLevel = false, lazyrefs = false,
     if (expr._annotation.tag === 'Many') {
       return 'many(' + pprintExpr(expr._expr, topLevel, lazyrefs, anytype) + ')';
     }
-    // absurd();
+    if (expr._annotation.tag === 'Dimap') {
+      throw new Error(`pprintExpr is not defined for 'Dimap'`);
+    }
+    return absurd(expr._annotation);
   }
-  // return absurd(expr);
+  return absurd(expr);
+}
+
+export function pprintPEG<A>(expr: Expr<A>, topLevel = false): string {
+  if (expr instanceof Pure) return JSON.stringify(expr._value);
+  if (expr instanceof Scanner) throw new Error(`pprintPEG is not defined for 'Scanner'`);
+  if (expr instanceof Tuple) return expr._values.map(x => pprintPEG(x)).join(' ')
+  if (expr instanceof OneOf) {
+    if (!topLevel) return expr._alternatives.map(x => pprintPEG(x, false)).join('\n  / ');
+    return expr._alternatives.map(x => pprintPEG(x, false)).join(' / ');
+  }
+  if (expr instanceof Hole) return '"<hole: ' + expr._message + '>"'
+  if (expr instanceof Ref) return expr._name;
+  if (expr instanceof Annot) {
+    if (expr._annotation.tag === 'Comment') {
+      return pprintPEG(expr._expr, topLevel);
+    }
+    if (expr._annotation.tag === 'Name') {
+      if (topLevel) return expr._annotation.name + '\n  = ' + pprintPEG(expr._expr, false);
+      return pprintPEG(expr._expr, topLevel);
+    }
+    if (expr._annotation.tag === 'Optional') {
+      return '(' + pprintPEG(expr._expr, topLevel) + ')?';
+    }
+    if (expr._annotation.tag === 'Many1') {
+      return '(' + pprintPEG(expr._expr, topLevel) + ')+';
+    }
+    if (expr._annotation.tag === 'Many') {
+      return '(' + pprintPEG(expr._expr, topLevel) + ')*';
+    }
+    if (expr._annotation.tag === 'Dimap') {
+      return pprintPEG(expr._expr, topLevel);
+    }
+    return absurd(expr._annotation);
+  }
+  return absurd(expr);
 }
 
 function esc(x: any) {
   return JSON.stringify(x);
 }
 const commentlines = x => '// ' + x.split('\n').join('\n// ');
+
+
 
 
 export function of<T>(x: T): Pure<T> {

@@ -108,7 +108,7 @@ const prepareRuleName = str => {
 };
 
 const prepareExpr = str => {
-  const exeptions = {'"["': '[', '"]"': ']', '|': false, '<': false, '>': false, '=': false, '"|"': '|', '<=': false, '<>': false };
+  const exeptions = {'"["': '[', '"]"': ']', '|': false, '<': false, '>': false, '=': false, '"|"': '|', '<=': false, '<>': false, '||': false, '[': false, ']': false,  };
   const trimmed = str.trim();
   if (trimmed in exeptions) return dsl.of(exeptions[trimmed] || trimmed);
   if (/^!!/.test(trimmed)) return dsl.hole(trimmed);
@@ -154,13 +154,14 @@ const sorted_roots = root_components.sort((a, b) => componentsWeights[a] > compo
 
 // console.log(JSON.stringify(gp01, null, 2))
 
-console.log(`import { rule, tuple, many, scanner, optional, many1, oneOf } from '../src/dsl';\n`);
-console.log(`const ref = x => 0 as any;\n`);
+// console.log(`import { rule, tuple, many, scanner, optional, many1, oneOf } from '../src/dsl';\n`);
+// console.log(`const ref = x => 0 as any;\n`);
 sorted_components.forEach(component => {
   const isgroup = Object.keys(components[component]).length > 1;
   isgroup && console.log('//-- <' + component + '>')
   for (const rule in components[component]) {
-    console.log(dsl.pprintExpr(rules[rule], true, isgroup, true) + ';');
+    const r = rules[rule];
+    console.log(dsl.pprintPEG(rules[rule], true));
     isgroup && console.log();
   }
   isgroup && console.log('// -- </' + component + '>')
