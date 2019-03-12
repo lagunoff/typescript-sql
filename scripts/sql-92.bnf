@@ -554,7 +554,10 @@ The plain text version of this grammar is
 
 <domain name> ::= <qualified name>
 
-<qualified name> ::= [ <schema name> <period> ] <qualified identifier>
+<qualified name> ::=
+		<catalog_name> <period> <unqualified schema name> <period> <qualified identifier>
+	|   <unqualified schema name> <period> <qualified identifier>
+	|   <qualified identifier>
 
 <default clause> ::= DEFAULT <default option>
 
@@ -835,13 +838,12 @@ The notation is written out longhand several times, instead.
 --/small
 
 <table reference> ::=
-	    <table reference_term> [ CROSS JOIN <table reference> ]
-	|   <table reference_term> [ [ NATURAL ] [ <join type> ] JOIN <table reference> [ <join specification> ] ]
+            <table reference factor> [ { { CROSS JOIN | [ NATURAL ] [ <join type> ] JOIN } <table reference factor> [ <join specification> ] }... ]
+	|   <left paren> <joined table> <right paren>
 
-<table reference_term> ::=
-	    <table name> [ <correlation specification> ]
-	|   <derived table> <correlation specification>
-        |   <left paren> <joined table> <right paren>
+<table reference factor> ::=
+            <table name> [ <correlation specification> ]
+        |   <derived table> <correlation specification>
 
 <correlation specification> ::=
 		[ AS ] <correlation name> [ <left paren> <derived column list> <right paren> ]

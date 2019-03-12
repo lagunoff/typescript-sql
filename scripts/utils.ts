@@ -174,11 +174,18 @@ export function pprintExpr<A>(expr: Expr<A>, topLevel = false, lazyrefs = false,
 export function pprintPEG<A>(expr: Expr<A>, topLevel = false): string {
   const withParens = expr => str => needParens(expr, false) ? '(' + str + ')' : str;
   
-  if (expr instanceof Pure) return esc(expr._value);
+  if (expr instanceof Pure) {
+    const value = expr._value as any as string;
+    // if (/^[\w\d_]+$/.test(value) && value.length !== 1) return esc(value) + 'i';
+    return esc(value);
+  }
   if (expr instanceof Scanner) throw new Error(`pprintPEG is not defined for 'Scanner'`);
-  if (expr instanceof Tuple) return expr._values.map(x => withParens(x)(pprintPEG(x))).join(' ')
+  if (expr instanceof Tuple) {
+    if (topLevel) return '$(' + expr._values.map(x => withParens(x)(pprintPEG(x))).join(' ') + ')'
+    return expr._values.map(x => withParens(x)(pprintPEG(x))).join(' ');
+  }
   if (expr instanceof OneOf) {
-    if (topLevel) return expr._alternatives.map(x => pprintPEG(x)).join('\n  / ');
+    if (topLevel) return expr._alternatives.map(x => pprintPEG(x, topLevel)).join('\n  / ');
     return expr._alternatives.map(x => pprintPEG(x)).join(' / ');
   }
   if (expr instanceof Hole) return '"<hole: ' + expr._message + '>"'
@@ -221,54 +228,6 @@ function esc(x: any) {
   return JSON.stringify(x);
 }
 export const commentlines = x => '// ' + x.split('\n').join('\n// ');
-
-
-export function addSpaces<A>(expr: Expr<A>): Expr<A> {
-  if (expr instanceof Tuple) {
-    expr._values.forEach((x, idx, arr) => arr[idx] = addSpaces(x));
-    for (let i=1; i < expr._values.length; i++) {
-      const a = expr._values[i - 1], b = expr._values[i];
-      const tripleOrTuple = addBetween(a, b);
-      if (tripleOrTuple.length === 3) expr._values.splice(i, 0, tripleOrTuple[1]);
-      i++;
-    }
-    return expr;
-  }
-  if (expr instanceof OneOf) {
-    expr._alternatives.forEach((x, idx, arr) => arr[idx] = addSpaces(x));
-    return expr;
-  }
-  if (expr instanceof Annot) {
-    expr._expr = addSpaces(expr._expr);
-    return expr;
-  }
-  return expr;
-
-  function addBetween(a: Expr, b: Expr): Expr[] {
-    if (isGroup(a) && isGroup(b)) return [a, addLeading(b)];
-    if (!isGroup(a) && !isGroup(b)) return [a, ref('_'), b];
-    if (isGroup(a) && !isGroup(b)) return [addEnd(a), b];
-    if (!isGroup(a) && isGroup(b)) return [a, addLeading(b)];
-    return [a, b];
-  }
-
-  function addEnd(a: Expr) {
-    if (a instanceof Annot) return (a._expr = addEnd(a._expr), a);
-    if (a instanceof Tuple) return (a._values.push(ref('_')), a);
-    return tuple(a, ref('_'));
-  }
-  
-  function addLeading(a: Expr) {
-    if (a instanceof Annot) return (a._expr = addLeading(a._expr), a);
-    if (a instanceof Tuple) return (a._values.unshift(ref('_')), a);
-    return tuple(ref('_'), a);
-  }
-
-  function isGroup(a: Expr): boolean {
-    if (a instanceof Annot && (a._annotation.tag === 'Optional' || a._annotation.tag === 'Many' || a._annotation.tag === 'Many1')) return true;
-    return false;
-  }
-}
 
 
 export function of<T>(x: T): Pure<T> {
@@ -475,7 +434,7 @@ export function rewrite<A>(expr: Expr<A>): Expr<A>[] {
   if (expr instanceof Annot && expr._annotation.tag === 'Name') {
     const { _annotation: { name } } = expr;
     
-    if (['space', 'identifier_start', 'nonquote_character', 'newline', 'nondoublequote_character'].indexOf(name) !== -1) {
+    if (['space', 'identifier_start', 'nonquote_character', 'newline', 'nondoublequote_character', 'regular_identifier'].indexOf(name) !== -1) {
       return [];
     }
   }
@@ -502,3 +461,62 @@ export function removeSingleRef(expr: Expr): Expr {
     return expr;
   }  
 }
+
+export function addSpaces<A>(expr: Expr<A>): Expr<A> {
+  const exludeSpaceAddition = [
+    'approximate_numeric_literal', 'national_character_string_literal', 'bit_string_literal', 'hex_string_literal', 'character_string_literal', 'identifier', 'delimited_identifier', 'date_value', 'time_string', 'timestamp_string', 'interval_string', 'day_time_interval', 'time_interval', 'qualified_name', 'character_set_name', 'schema_name', 'doublequote_symbol', 'quote_symbol', 'identifier_body'
+  ];
+  if (expr instanceof Tuple) {
+    expr._values.forEach((x, idx, arr) => arr[idx] = addSpaces(x));
+    for (let i=1; i < expr._values.length; i++) {
+      const a = expr._values[i - 1], b = expr._values[i];
+      const tripleOrTuple = addBetween(i - 1, a, b);
+      if (tripleOrTuple.length === 3) {
+        expr._values[i - 1] = tripleOrTuple[0];
+        expr._values[i] = tripleOrTuple[2];
+        expr._values.splice(i, 0, tripleOrTuple[1]);
+        i++;
+      } else {
+        expr._values[i - 1] = tripleOrTuple[0];
+        expr._values[i] = tripleOrTuple[1];
+      }
+    }
+    return expr;
+  }
+  if (expr instanceof OneOf) {
+    expr._alternatives.forEach((x, idx, arr) => arr[idx] = addSpaces(x));
+    return expr;
+  }
+  if (expr instanceof Annot) {
+    if (expr._annotation.tag === 'Name' && exludeSpaceAddition.indexOf(expr._annotation.name) !== -1) return expr;
+    expr._expr = addSpaces(expr._expr);
+    return expr;
+  }
+  return expr;
+
+  function addBetween(idx: number, a: Expr, b: Expr): Expr[] {
+    if (isGroup(a) && isGroup(b)) return [a, addLeading(b)];
+    if (!isGroup(a) && !isGroup(b)) return [a, ref('_'), b];
+    if (isGroup(a) && !isGroup(b)) return idx === 0 ? [addEnd(a), b] : [a, ref('_'), b];
+    if (!isGroup(a) && isGroup(b)) return [a, addLeading(b)];
+    return [a, b];
+  }
+
+  function addEnd(a: Expr) {
+    if (a instanceof Annot) return (a._expr = addEnd(a._expr), a);
+    if (a instanceof Tuple) return (a._values.push(ref('_')), a);
+    return tuple(a, ref('_'));
+  }
+  
+  function addLeading(a: Expr) {
+    if (a instanceof Annot) return (a._expr = addLeading(a._expr), a);
+    if (a instanceof Tuple) return (a._values.unshift(ref('_')), a);
+    return tuple(ref('_'), a);
+  }
+
+  function isGroup(a: Expr): boolean {
+    if (a instanceof Annot && (a._annotation.tag === 'Optional' || a._annotation.tag === 'Many' || a._annotation.tag === 'Many1')) return true;
+    return false;
+  }
+}
+
