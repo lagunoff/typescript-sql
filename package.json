@@ -6,9 +6,7 @@
   "repository": "git@github.com:lagunoff/typescript-sql.git",
   "author": "Vladislav Lagunoff <vlad.lagunoff@gmail.com>",
   "license": "MIT",
-  "devDependencies": {
-    "jison": "^0.4.18"
-  },
+  "devDependencies": {},
   "dependencies": {
     "pegjs": "^0.10.0"
   }
