@@ -1,4 +1,4 @@
-import { absurd } from "./types";
+import { absurd } from "../src/types";
 
 export type InferA<E>
   = E extends string ? E 
@@ -471,17 +471,21 @@ export function replaceOptionalMany1(expr: Expr): Expr {
 }
 
 
-export function customRewrites<A>(expr: Expr<A>): Expr<A> {
-  if (expr instanceof Annot && expr._annotation.tag === 'Name' && expr._annotation.name === 'term') {
-    return rule<any>("term", tuple(ref('factor'), optional(tuple(oneOf(ref('asterisk'), ref('solidus'))), ref('factor'))));
+export function rewrite<A>(expr: Expr<A>): Expr<A>[] {
+  if (expr instanceof Annot && expr._annotation.tag === 'Name') {
+    const { _annotation: { name } } = expr;
+    
+    if (['space', 'identifier_start', 'nonquote_character', 'newline', 'nondoublequote_character'].indexOf(name) !== -1) {
+      return [];
+    }
   }
-  if (expr instanceof Annot && expr._annotation.tag === 'Name' && expr._annotation.name === 'numeric_value_expression') {
-    return rule<any>("numeric_value_expression", tuple(ref('term'), optional(tuple(oneOf(ref('plus_sign'), ref('minus_sign'))), ref('term'))));
+  if (expr instanceof Annot) {
+    return rewrite(expr._expr).map((e, idx) => idx === 0 ? (expr._expr = e, expr) : e) as any;
   }
-  if (expr instanceof Annot) return (expr._expr = customRewrites(expr._expr), expr);
-  if (expr instanceof Tuple) { expr._values.forEach((x, idx, xs) => xs[idx] = customRewrites(x)); return expr; }
-  if (expr instanceof OneOf) { expr._alternatives.forEach((x, idx, xs) => xs[idx] = customRewrites(x)); return expr; }
-  return expr;
+  // if (expr instanceof Annot) return (expr._expr = rewrite(expr._expr), [expr]);
+  // if (expr instanceof Tuple) { expr._values.forEach((x, idx, xs) => xs[idx] = rewrite(x)); return [expr; }
+  // if (expr instanceof OneOf) { expr._alternatives.forEach((x, idx, xs) => xs[idx] = rewrite(x)); return expr; }
+  return [expr];
 }
 
 

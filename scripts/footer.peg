@@ -1,0 +1,22 @@
+_
+  = separator
+
+space
+  = [ ]
+
+identifier_start
+  = [a-zA-Z_]
+
+nonquote_character
+  = . & { return text() !== "'"; }
+
+newline
+  = [\n]
+
+nondoublequote_character
+  = . & { return text() !== '"'; }
+  
+  
+
+
+
