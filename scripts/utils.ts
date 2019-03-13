@@ -227,7 +227,7 @@ export function pprintPEG<A>(expr: Expr<A>, topLevel = false): string {
 function esc(x: any) {
   return JSON.stringify(x);
 }
-export const commentlines = x => '// ' + x.split('\n').join('\n// ');
+export const commentlines = (x, intro='// ') => intro + x.split('\n').join('\n' + intro);
 
 
 export function of<T>(x: T): Pure<T> {
