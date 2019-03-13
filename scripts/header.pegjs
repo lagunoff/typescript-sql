@@ -1,5 +1,5 @@
 start
-  = (_? stmt _? ";")* 
+  = (_? stmt _? ";")* _?
 
 stmt
   = delete_statement__positioned
@@ -22,5 +22,8 @@ stmt
   / "@COMPARISON_PREDICATE:" _? comparison_predicate
   / "@BOOLEAN_TEST:" _? boolean_test
   / "@WHERE_CLAUSE:" _? where_clause
-  / "@FROM_CLAUSE:" _? from_clause
+  / "@FROM_CLAUSE:" _? from_clause  
+  / "@VALUE_EXPRESSION_PRIMARY:" _? value_expression_primary
+  / "@COLUMN_REFERENCE:" _? column_reference
+
 

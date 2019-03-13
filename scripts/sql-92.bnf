@@ -765,7 +765,7 @@ The plain text version of this grammar is
 
 <indicator variable> ::= [ INDICATOR ] <embedded variable name>
 
-<column reference> ::= [ <qualifier> <period> ] <column name>
+<column reference> ::= [ <catalog name> <period> ] [ <schema name> <period> ] <column name>
 
 <qualifier> ::= <table name> | <correlation name>
 

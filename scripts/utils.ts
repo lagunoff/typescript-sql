@@ -464,7 +464,7 @@ export function removeSingleRef(expr: Expr): Expr {
 
 export function addSpaces<A>(expr: Expr<A>): Expr<A> {
   const exludeSpaceAddition = [
-    'approximate_numeric_literal', 'national_character_string_literal', 'bit_string_literal', 'hex_string_literal', 'character_string_literal', 'identifier', 'delimited_identifier', 'date_value', 'time_string', 'timestamp_string', 'interval_string', 'day_time_interval', 'time_interval', 'qualified_name', 'character_set_name', 'schema_name', 'doublequote_symbol', 'quote_symbol', 'identifier_body', 'comment', 'comment_introducer', 'year_month_literal', 'time_value', 'date_literal', 'date_string'
+    'approximate_numeric_literal', 'national_character_string_literal', 'bit_string_literal', 'hex_string_literal', 'character_string_literal', 'identifier', 'delimited_identifier', 'date_value', 'time_string', 'timestamp_string', 'interval_string', 'day_time_interval', 'time_interval', 'qualified_name', 'character_set_name', 'schema_name', 'doublequote_symbol', 'quote_symbol', 'identifier_body', 'comment', 'comment_introducer', 'year_month_literal', 'time_value', 'date_literal', 'date_string', 'column_reference'
   ];
   if (expr instanceof Tuple) {
     expr._values.forEach((x, idx, arr) => arr[idx] = addSpaces(x));
