@@ -102,7 +102,7 @@ const parseTuple = str => {
 const esc = x => JSON.stringify(x);
 const compose = (...fns) => x => fns.reduceRight((acc, fn) => fn(acc), x);
 const prepareRuleName = str => {
-  const output = str.replace(/<|>/g, '').replace(/[^\w\d]/g, '_').replace(/^(\d)/, '_$1');
+  const output = str.replace(/<|>/g, '').replace(/[^\w\d]+/g, '_').replace(/^(\d)/, '_$1');
   return output;
 };
 
@@ -143,7 +143,7 @@ const [components, gp02] = utils.computeKosaraju(gp01);
 const components_inv = utils.inverseGP(components);
 const gp02_inv = utils.inverseGP(gp02);
 const roots = Array.prototype.concat.apply([], [
-  'delete_statement__searched', 'insert_statement' ,'rollback_statement' ,'search_condition', 'query_specification' , 'update_statement__searched', 'value_expression',
+  'delete_statement_searched', 'insert_statement' ,'rollback_statement' ,'search_condition', 'query_specification' , 'update_statement_searched', 'value_expression', 'table_definition',
   'identifier_body',
 ].map(k => Object.keys(components_inv[k])));
 

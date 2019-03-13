@@ -1,6 +1,9 @@
 _
   = separator
 
+eof
+  = !.
+
 space
   = [ ]
 
@@ -17,7 +20,7 @@ nondoublequote_character
   = ch:. & { return ch !== '"'; }
 
 regular_identifier
-  = text:identifier_body & { return text !== 'FROM' && text !== 'WHERE' && text !== 'JOIN' && text !== 'CROSS' && text !== 'MAX' }
+  = text:identifier_body & { return !isKeyword(text) }
 
 comment_character
   = ch:. & { return ch !== '\n' }

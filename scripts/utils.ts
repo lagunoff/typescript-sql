@@ -176,7 +176,7 @@ export function pprintPEG<A>(expr: Expr<A>, topLevel = false): string {
   
   if (expr instanceof Pure) {
     const value = expr._value as any as string;
-    // if (/^[\w\d_]+$/.test(value) && value.length !== 1) return esc(value) + 'i';
+    if (/^[\w\d_]+$/.test(value) && value.length !== 1) return esc(value) + 'i';
     return esc(value);
   }
   if (expr instanceof Scanner) throw new Error(`pprintPEG is not defined for 'Scanner'`);
@@ -195,7 +195,7 @@ export function pprintPEG<A>(expr: Expr<A>, topLevel = false): string {
       return pprintPEG(expr._expr, topLevel);
     }
     if (expr._annotation.tag === 'Name') {
-      if (topLevel) return expr._annotation.name + '\n  = ' + pprintPEG(expr._expr, topLevel);
+      if (topLevel) return expr._annotation.name + ' ' + esc(expr._annotation.name) + '\n  = ' + pprintPEG(expr._expr, topLevel);
       return pprintPEG(expr._expr, topLevel);
     }
     if (expr._annotation.tag === 'Optional') {
@@ -520,4 +520,5 @@ export function addSpaces<A>(expr: Expr<A>): Expr<A> {
   }
 }
 
-const maybeSpace = optional(ref('_'));
+const space = ref('_');
+const maybeSpace = optional(space);
