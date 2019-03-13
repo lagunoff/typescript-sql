@@ -6,6 +6,9 @@
   "repository": "git@github.com:lagunoff/typescript-sql.git",
   "author": "Vladislav Lagunoff <vlad.lagunoff@gmail.com>",
   "license": "MIT",
+  "scripts": {
+    "build-parser": "pegjs --optimize speed -o lib/fast.js src/grammar.pegjs; pegjs --optimize size -o lib/compact.js src/grammar.pegjs"
+  },
   "devDependencies": {},
   "dependencies": {
     "pegjs": "^0.10.0"
