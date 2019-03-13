@@ -464,7 +464,7 @@ export function removeSingleRef(expr: Expr): Expr {
 
 export function addSpaces<A>(expr: Expr<A>): Expr<A> {
   const exludeSpaceAddition = [
-    'approximate_numeric_literal', 'national_character_string_literal', 'bit_string_literal', 'hex_string_literal', 'character_string_literal', 'identifier', 'delimited_identifier', 'date_value', 'time_string', 'timestamp_string', 'interval_string', 'day_time_interval', 'time_interval', 'qualified_name', 'character_set_name', 'schema_name', 'doublequote_symbol', 'quote_symbol', 'identifier_body'
+    'approximate_numeric_literal', 'national_character_string_literal', 'bit_string_literal', 'hex_string_literal', 'character_string_literal', 'identifier', 'delimited_identifier', 'date_value', 'time_string', 'timestamp_string', 'interval_string', 'day_time_interval', 'time_interval', 'qualified_name', 'character_set_name', 'schema_name', 'doublequote_symbol', 'quote_symbol', 'identifier_body', 'comment', 'comment_introducer', 'year_month_literal', 'time_value', 'date_literal', 'date_string'
   ];
   if (expr instanceof Tuple) {
     expr._values.forEach((x, idx, arr) => arr[idx] = addSpaces(x));
@@ -496,22 +496,22 @@ export function addSpaces<A>(expr: Expr<A>): Expr<A> {
 
   function addBetween(idx: number, a: Expr, b: Expr): Expr[] {
     if (isGroup(a) && isGroup(b)) return [a, addLeading(b)];
-    if (!isGroup(a) && !isGroup(b)) return [a, ref('_'), b];
-    if (isGroup(a) && !isGroup(b)) return idx === 0 ? [addEnd(a), b] : [a, ref('_'), b];
+    if (!isGroup(a) && !isGroup(b)) return [a, maybeSpace, b];
+    if (isGroup(a) && !isGroup(b)) return idx === 0 ? [addEnd(a), b] : [a, maybeSpace, b];
     if (!isGroup(a) && isGroup(b)) return [a, addLeading(b)];
     return [a, b];
   }
 
   function addEnd(a: Expr) {
     if (a instanceof Annot) return (a._expr = addEnd(a._expr), a);
-    if (a instanceof Tuple) return (a._values.push(ref('_')), a);
-    return tuple(a, ref('_'));
+    if (a instanceof Tuple) return (a._values.push(maybeSpace), a);
+    return tuple(a, maybeSpace);
   }
   
   function addLeading(a: Expr) {
     if (a instanceof Annot) return (a._expr = addLeading(a._expr), a);
-    if (a instanceof Tuple) return (a._values.unshift(ref('_')), a);
-    return tuple(ref('_'), a);
+    if (a instanceof Tuple) return (a._values.unshift(maybeSpace), a);
+    return tuple(maybeSpace, a);
   }
 
   function isGroup(a: Expr): boolean {
@@ -520,3 +520,4 @@ export function addSpaces<A>(expr: Expr<A>): Expr<A> {
   }
 }
 
+const maybeSpace = optional(ref('_'));

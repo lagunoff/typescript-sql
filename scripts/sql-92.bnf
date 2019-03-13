@@ -281,10 +281,6 @@ The plain text version of this grammar is
 
 <comment introducer> ::= <minus sign><minus sign> [<minus sign>...]
 
-<comment character> ::= <nonquote character> | <quote>
-
-<newline> ::= !! implementation defined end of line indicator
-
 <bit string literal> ::=
 		B <quote> [ <bit> ... ] <quote> [ { <separator>... <quote> [ <bit>... ] <quote> }... ]
 
@@ -671,9 +667,9 @@ The plain text version of this grammar is
 <boolean primary> ::= <predicate> | <left paren> <search condition> <right paren>
 
 <predicate> ::=
-		<comparison predicate>
-	|   <between predicate>
+		<between predicate>
 	|   <in predicate>
+	|   <comparison predicate>
 	|   <like predicate>
 	|   <null predicate>
 	|   <quantified comparison predicate>
@@ -694,8 +690,8 @@ The plain text version of this grammar is
 	|   <default specification>
 
 <value expression> ::=
-		<numeric value expression>
-	|   <string value expression>
+		<string value expression>
+	|   <numeric value expression>
 	|   <datetime value expression>
 	|   <interval value expression>
 
@@ -711,8 +707,8 @@ The plain text version of this grammar is
 
 <value expression primary> ::=
 		<unsigned value specification>
-	|   <column reference>
 	|   <set function specification>
+	|   <column reference>
 	|   <scalar subquery>
 	|   <case expression>
 	|   <left paren> <value expression> <right paren>

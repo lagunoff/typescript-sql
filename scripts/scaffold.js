@@ -103,12 +103,11 @@ const esc = x => JSON.stringify(x);
 const compose = (...fns) => x => fns.reduceRight((acc, fn) => fn(acc), x);
 const prepareRuleName = str => {
   const output = str.replace(/<|>/g, '').replace(/[^\w\d]/g, '_').replace(/^(\d)/, '_$1');
-  if (output === 'module') return '_module';
   return output;
 };
 
 const prepareExpr = str => {
-  const exeptions = {'"["': '[', '"]"': ']', '|': false, '<': false, '>': false, '=': false, '"|"': '|', '<=': false, '<>': false, '||': false, '[': false, ']': false,  };
+  const exeptions = {'"["': '[', '"]"': ']', '|': false, '<': false, '>': false, '=': false, '"|"': '|', '<=': false, '<>': false, '||': false, '[': false, ']': false, '{': false  };
   const trimmed = str.trim();
   if (trimmed in exeptions) return utils.of(exeptions[trimmed] || trimmed);
   if (/^!!/.test(trimmed)) return utils.hole(trimmed);
@@ -139,26 +138,34 @@ input.split('\n\n').forEach($1 => {
 });
 const exprs = Object.keys(rules);
 
-// const gp01 = dsl.makeGP(rules);
-// const [components, gp02] = dsl.computeKosaraju(gp01);
-// const componentsinv = dsl.inverseGP(components);
-// const gp02inv = dsl.inverseGP(gp02);
-// const roots = Array.prototype.concat.apply([], ['select_statement__single_row'].map(k => Object.keys(componentsinv[k])));
-// const root_components = dsl.transitiveEdges(gp02inv, roots);
-// const sorted_components = dsl.topologicalSort(components, gp02);
+const gp01 = utils.makeGP(rules);
+const [components, gp02] = utils.computeKosaraju(gp01);
+const components_inv = utils.inverseGP(components);
+const gp02_inv = utils.inverseGP(gp02);
+const roots = Array.prototype.concat.apply([], [
+  'delete_statement__positioned' ,'delete_statement__searched' ,'dynamic_delete_statement__positioned' ,'insert_statement' ,'rollback_statement' ,'search_condition', 'query_specification' ,'update_statement__positioned' ,'update_statement__searched' ,'dynamic_update_statement__positioned' ,'value_expression',
+  'identifier_body',
+].map(k => Object.keys(components_inv[k])));
+
+const root_components = utils.transitiveEdges(gp02_inv, roots);
+// const sorted_components = utils.topologicalSort(components, gp02);
 // const componentsWeights = sorted_components.reduce((acc, x, idx) => (acc[x] = idx, acc), {});
 // const sorted_roots = root_components.sort((a, b) => componentsWeights[a] > componentsWeights[b] ? 1 : componentsWeights[a] < componentsWeights[b] ? -1 : 0);
 // console.log(roots);
-// console.log(JSON.stringify(dsl.transitiveEdges(gp02inv, roots), null, 2));
+// console.log(JSON.stringify(utils.transitiveEdges(gp02inv, roots), null, 2));
 // debugInfo(components, gp02, gp02inv);
 // process.exit(0);
 // console.log(JSON.stringify(gp01, null, 2))
 
 // console.log(`import { rule, tuple, many, scanner, optional, many1, oneOf } from '../src/dsl';\n`);
-exprs.forEach(rule => {
-//  console.log(utils.commentlines(utils.pprintExpr(rules[rule], false)));
-  console.log(utils.pprintPEG(rules[rule], true));
-  console.log();
+root_components.forEach(component => {
+  if (!(component in components)) return;
+  Object.keys(components[component]).forEach(rule => {
+    if (!(rule in rules)) return;
+    //  console.log(utils.commentlines(utils.pprintExpr(rules[rule], false)));
+    console.log(utils.pprintPEG(rules[rule], true));
+    console.log();
+  });
 });
 
 // const topologicalSort = dsl.getTransitiveRefs(rules, dg, ['bit_factor']);
@@ -175,5 +182,5 @@ function debugInfo(components, gp, gpinv) {
     console.log(`${c} -> ` + (invedges.length ? invedges.join(', ') : '<none>'));
     console.log(`${c} <- ` + (edges.length ? edges.join(', ') : '<none>'));
     console.log(`\n`);
-  })
+  });
 }
