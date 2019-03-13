@@ -163,8 +163,8 @@ root_components.forEach(component => {
   Object.keys(components[component]).forEach(rule => {
     if (!(rule in rules)) return;
     //  console.log(utils.commentlines(utils.pprintExpr(rules[rule], false)));
-    console.log(utils.commentlines(`type ${rule} = {};`, '//= '));
-    console.log(utils.commentlines(`printers[${esc(rule)}] = function(value) { return String(value); };`, '//= '));
+    console.log(utils.commentlines(`type ${rule} = { tag: ${esc(rule)} };`, '//= '));
+    console.log(utils.commentlines(`printers[${esc(rule)}] = function(value) { throw 'print ${esc(rule)}: unimplemented'; };`, '//= '));
     console.log(utils.pprintPEG(rules[rule], true));
     console.log();
   });
