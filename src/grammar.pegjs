@@ -5,9 +5,10 @@
     return str in keywords || str.toUpperCase() in keywords_i;
   }
 }
+//= const printers: any = {};
 
 start
-  = (_? stmt _? ";" _? / _? stmt _? eof)*
+  = (_? stmt _ ";" _ / _ stmt _ eof)*
 
 stmt
   = delete_statement
@@ -17,25 +18,25 @@ stmt
   / query_specification
   / update_statement_searched
   / table_definition
-  / "@QUERY_EXPRESSION:" _? query_expression
-  / "@VALUE_EXPRESSION:" _? value_expression
-  / "@GENERAL_LITERAL:" _? general_literal
-  / "@IDENTIFIER:" _? identifier
-  / "@TABLE_REFERENCE:" _? table_reference
-  / "@TABLE_EXPRESSION:" _? table_expression
-  / "@SEARCH_CONDITION:" _? search_condition
-  / "@COMPARISON_PREDICATE:" _? comparison_predicate
-  / "@BOOLEAN_TEST:" _? boolean_test
-  / "@WHERE_CLAUSE:" _? where_clause
-  / "@FROM_CLAUSE:" _? from_clause  
-  / "@VALUE_EXPRESSION_PRIMARY:" _? value_expression_primary
-  / "@COLUMN_REFERENCE:" _? column_reference
+  / "@QUERY_EXPRESSION:" _ query_expression
+  / "@VALUE_EXPRESSION:" _ value_expression
+  / "@GENERAL_LITERAL:" _ general_literal
+  / "@IDENTIFIER:" _ identifier
+  / "@TABLE_REFERENCE:" _ table_reference
+  / "@TABLE_EXPRESSION:" _ table_expression
+  / "@SEARCH_CONDITION:" _ search_condition
+  / "@COMPARISON_PREDICATE:" _ comparison_predicate
+  / "@BOOLEAN_TEST:" _ boolean_test
+  / "@WHERE_CLAUSE:" _ where_clause
+  / "@FROM_CLAUSE:" _ from_clause  
+  / "@VALUE_EXPRESSION_PRIMARY:" _ value_expression_primary
+  / "@COLUMN_REFERENCE:" _ column_reference
 
 
 //= type delete_statement = { tag: 'delete_statement', table_name: table_name, search_condition: search_condition };
 //= printers["delete_statement"] = function(value) { return String(value); };
 delete_statement "delete_statement"
-  = "DELETE"i _ "FROM"i _ table_name:table_name where:(_ "WHERE"i _? search_condition)?
+  = DELETE _ FROM _ table_name:table_name where:(_ WHERE _ search_condition)?
     { return { tag: 'delete_statement', table_name: table_name, search_condition: where ? where[3] : null }; }
 
 //= type table_name = qualified_name;
@@ -163,7 +164,7 @@ value_expression_primary "value_expression_primary"
   / column_reference
   / scalar_subquery
   / case_expression
-  / left_paren _? expr:value_expression _? right_paren { return expr; }
+  / left_paren _ expr:value_expression _ right_paren { return expr; }
   / cast_specification
 
 //= type value_expression = { tag: "value_expression" };
@@ -183,7 +184,7 @@ string_value_expression "string_value_expression"
 //= type character_value_expression = { tag: "character_value_expression" };
 //= printers["character_value_expression"] = function(value) { throw 'print "character_value_expression": unimplemented'; };
 character_value_expression "character_value_expression"
-  = $(character_factor (_? concatenation_operator _? character_factor)*)
+  = $(character_factor (_? concatenation_operator _ character_factor)*)
 
 //= type character_factor = { tag: "character_factor" };
 //= printers["character_factor"] = function(value) { throw 'print "character_factor": unimplemented'; };
@@ -214,7 +215,7 @@ character_value_function "character_value_function"
 //= type character_substring_function = { tag: "character_substring_function" };
 //= printers["character_substring_function"] = function(value) { throw 'print "character_substring_function": unimplemented'; };
 character_substring_function "character_substring_function"
-  = $("SUBSTRING"i _? left_paren _? character_value_expression _? "FROM"i _? start_position (_? "FOR"i _? string_length)? _? right_paren)
+  = $(SUBSTRING _ left_paren _ character_value_expression _ FROM _ start_position (_? FOR _ string_length)? _ right_paren)
 
 //= type start_position = { tag: "start_position" };
 //= printers["start_position"] = function(value) { throw 'print "start_position": unimplemented'; };
@@ -224,12 +225,12 @@ start_position "start_position"
 //= type numeric_value_expression = { tag: "numeric_value_expression" };
 //= printers["numeric_value_expression"] = function(value) { throw 'print "numeric_value_expression": unimplemented'; };
 numeric_value_expression "numeric_value_expression"
-  = $(term (_? (plus_sign / minus_sign) _? term)*)
+  = $(term (_? (plus_sign / minus_sign) _ term)*)
 
 //= type term = { tag: "term" };
 //= printers["term"] = function(value) { throw 'print "term": unimplemented'; };
 term "term"
-  = $(factor (_? (asterisk / solidus) _? factor)*)
+  = $(factor (_? (asterisk / solidus) _ factor)*)
 
 //= type factor = { tag: "factor" };
 //= printers["factor"] = function(value) { throw 'print "factor": unimplemented'; };
@@ -252,12 +253,12 @@ numeric_value_function "numeric_value_function"
 //= type position_expression = { tag: "position_expression" };
 //= printers["position_expression"] = function(value) { throw 'print "position_expression": unimplemented'; };
 position_expression "position_expression"
-  = $("POSITION"i _? left_paren _? character_value_expression _? "IN"i _? character_value_expression _? right_paren)
+  = $(POSITION _ left_paren _ character_value_expression _ IN _ character_value_expression _ right_paren)
 
 //= type extract_expression = { tag: "extract_expression" };
 //= printers["extract_expression"] = function(value) { throw 'print "extract_expression": unimplemented'; };
 extract_expression "extract_expression"
-  = $("EXTRACT"i _? left_paren _? extract_field _? "FROM"i _? extract_source _? right_paren)
+  = $(EXTRACT _ left_paren _ extract_field _ FROM _ extract_source _ right_paren)
 
 //= type extract_source = { tag: "extract_source" };
 //= printers["extract_source"] = function(value) { throw 'print "extract_source": unimplemented'; };
@@ -268,14 +269,14 @@ extract_source "extract_source"
 //= type datetime_value_expression = { tag: "datetime_value_expression" };
 //= printers["datetime_value_expression"] = function(value) { throw 'print "datetime_value_expression": unimplemented'; };
 datetime_value_expression "datetime_value_expression"
-  = $(datetime_term (_? (asterisk / solidus) _? interval_term)*)
-  / $(interval_value_expression _? plus_sign _? datetime_term)
+  = $(datetime_term (_? (asterisk / solidus) _ interval_term)*)
+  / $(interval_value_expression _ plus_sign _ datetime_term)
 
 //= type interval_value_expression = { tag: "interval_value_expression" };
 //= printers["interval_value_expression"] = function(value) { throw 'print "interval_value_expression": unimplemented'; };
 interval_value_expression "interval_value_expression"
-  = $(interval_term (_? (plus_sign / minus_sign) _? interval_term)*)
-  / $(left_paren _? datetime_value_expression _? minus_sign _? datetime_term _? right_paren _? interval_qualifier)
+  = $(interval_term (_? (plus_sign / minus_sign) _ interval_term)*)
+  / $(left_paren _ datetime_value_expression _ minus_sign _ datetime_term _ right_paren _ interval_qualifier)
 
 //= type datetime_term = { tag: "datetime_term" };
 //= printers["datetime_term"] = function(value) { throw 'print "datetime_term": unimplemented'; };
@@ -296,19 +297,19 @@ datetime_primary "datetime_primary"
 //= type time_zone = { tag: "time_zone" };
 //= printers["time_zone"] = function(value) { throw 'print "time_zone": unimplemented'; };
 time_zone "time_zone"
-  = $("AT"i _? time_zone_specifier)
+  = $(AT _ time_zone_specifier)
 
 //= type time_zone_specifier = { tag: "time_zone_specifier" };
 //= printers["time_zone_specifier"] = function(value) { throw 'print "time_zone_specifier": unimplemented'; };
 time_zone_specifier "time_zone_specifier"
-  = "LOCAL"i
-  / $("TIME"i _? "ZONE"i _? interval_value_expression)
+  = LOCAL
+  / $(TIME _ ZONE _ interval_value_expression)
 
 //= type interval_term = { tag: "interval_term" };
 //= printers["interval_term"] = function(value) { throw 'print "interval_term": unimplemented'; };
 interval_term "interval_term"
-  = $(interval_factor (_? (asterisk / solidus) _? factor)*)
-  / $(term _? asterisk _? interval_factor)
+  = $(interval_factor (_? (asterisk / solidus) _ factor)*)
+  / $(term _ asterisk _ interval_factor)
 
 //= type interval_factor = { tag: "interval_factor" };
 //= printers["interval_factor"] = function(value) { throw 'print "interval_factor": unimplemented'; };
@@ -330,17 +331,17 @@ length_expression "length_expression"
 //= type char_length_expression = { tag: "char_length_expression" };
 //= printers["char_length_expression"] = function(value) { throw 'print "char_length_expression": unimplemented'; };
 char_length_expression "char_length_expression"
-  = $(("CHAR_LENGTH"i / "CHARACTER_LENGTH"i) _? left_paren _? string_value_expression _? right_paren)
+  = $((CHAR_LENGTH / CHARACTER_LENGTH) _ left_paren _ string_value_expression _ right_paren)
 
 //= type octet_length_expression = { tag: "octet_length_expression" };
 //= printers["octet_length_expression"] = function(value) { throw 'print "octet_length_expression": unimplemented'; };
 octet_length_expression "octet_length_expression"
-  = $("OCTET_LENGTH"i _? left_paren _? string_value_expression _? right_paren)
+  = $(OCTET_LENGTH _ left_paren _ string_value_expression _ right_paren)
 
 //= type bit_length_expression = { tag: "bit_length_expression" };
 //= printers["bit_length_expression"] = function(value) { throw 'print "bit_length_expression": unimplemented'; };
 bit_length_expression "bit_length_expression"
-  = $("BIT_LENGTH"i _? left_paren _? string_value_expression _? right_paren)
+  = $(BIT_LENGTH _ left_paren _ string_value_expression _ right_paren)
 
 //= type string_length = { tag: "string_length" };
 //= printers["string_length"] = function(value) { throw 'print "string_length": unimplemented'; };
@@ -350,27 +351,27 @@ string_length "string_length"
 //= type fold = { tag: "fold" };
 //= printers["fold"] = function(value) { throw 'print "fold": unimplemented'; };
 fold "fold"
-  = $(("UPPER"i / "LOWER"i) _? left_paren _? character_value_expression _? right_paren)
+  = $((UPPER / LOWER) _ left_paren _ character_value_expression _ right_paren)
 
 //= type form_of_use_conversion = { tag: "form_of_use_conversion" };
 //= printers["form_of_use_conversion"] = function(value) { throw 'print "form_of_use_conversion": unimplemented'; };
 form_of_use_conversion "form_of_use_conversion"
-  = $("CONVERT"i _? left_paren _? character_value_expression _? "USING"i _? form_of_use_conversion_name _? right_paren)
+  = $(CONVERT _ left_paren _ character_value_expression _ USING _ form_of_use_conversion_name _ right_paren)
 
 //= type character_translation = { tag: "character_translation" };
 //= printers["character_translation"] = function(value) { throw 'print "character_translation": unimplemented'; };
 character_translation "character_translation"
-  = $("TRANSLATE"i _? left_paren _? character_value_expression _? "USING"i _? translation_name _? right_paren)
+  = $(TRANSLATE _ left_paren _ character_value_expression _ USING _ translation_name _ right_paren)
 
 //= type trim_function = { tag: "trim_function" };
 //= printers["trim_function"] = function(value) { throw 'print "trim_function": unimplemented'; };
 trim_function "trim_function"
-  = $("TRIM"i _? left_paren _? trim_operands _? right_paren)
+  = $(TRIM _ left_paren _ trim_operands _ right_paren)
 
 //= type trim_operands = { tag: "trim_operands" };
 //= printers["trim_operands"] = function(value) { throw 'print "trim_operands": unimplemented'; };
 trim_operands "trim_operands"
-  = $((trim_specification? (_? trim_character)? _? "FROM"i _?)? trim_source)
+  = $((trim_specification? (_? trim_character)? _ FROM _?)? trim_source)
 
 //= type trim_character = { tag: "trim_character" };
 //= printers["trim_character"] = function(value) { throw 'print "trim_character": unimplemented'; };
@@ -390,12 +391,12 @@ bit_value_function "bit_value_function"
 //= type bit_substring_function = { tag: "bit_substring_function" };
 //= printers["bit_substring_function"] = function(value) { throw 'print "bit_substring_function": unimplemented'; };
 bit_substring_function "bit_substring_function"
-  = $("SUBSTRING"i _? left_paren _? bit_value_expression _? "FROM"i _? start_position (_? "FOR"i _? string_length)? _? right_paren)
+  = $(SUBSTRING _ left_paren _ bit_value_expression _ FROM _ start_position (_? FOR _ string_length)? _ right_paren)
 
 //= type bit_value_expression = { tag: "bit_value_expression" };
 //= printers["bit_value_expression"] = function(value) { throw 'print "bit_value_expression": unimplemented'; };
 bit_value_expression "bit_value_expression"
-  = $(bit_factor (_? concatenation_operator _? bit_factor)*)
+  = $(bit_factor (_? concatenation_operator _ bit_factor)*)
 
 //= type bit_factor = { tag: "bit_factor" };
 //= printers["bit_factor"] = function(value) { throw 'print "bit_factor": unimplemented'; };
@@ -411,13 +412,13 @@ bit_primary "bit_primary"
 //= type set_function_specification = { tag: "set_function_specification" };
 //= printers["set_function_specification"] = function(value) { throw 'print "set_function_specification": unimplemented'; };
 set_function_specification "set_function_specification"
-  = $("COUNT"i _? left_paren _? asterisk _? right_paren)
+  = $(COUNT _ left_paren _ asterisk _ right_paren)
   / general_set_function
 
 //= type general_set_function = { tag: "general_set_function" };
 //= printers["general_set_function"] = function(value) { throw 'print "general_set_function": unimplemented'; };
 general_set_function "general_set_function"
-  = $(set_function_type _? left_paren (_? set_quantifier)? _? value_expression _? right_paren)
+  = $(set_function_type _ left_paren (_? set_quantifier)? _ value_expression _ right_paren)
 
 //= type scalar_subquery = { tag: "scalar_subquery" };
 //= printers["scalar_subquery"] = function(value) { throw 'print "scalar_subquery": unimplemented'; };
@@ -427,7 +428,7 @@ scalar_subquery "scalar_subquery"
 //= type subquery = { tag: "subquery" };
 //= printers["subquery"] = function(value) { throw 'print "subquery": unimplemented'; };
 subquery "subquery"
-  = $(left_paren _? query_expression _? right_paren)
+  = $(left_paren _ query_expression _ right_paren)
 
 //= type query_expression = { tag: "query_expression" };
 //= printers["query_expression"] = function(value) { throw 'print "query_expression": unimplemented'; };
@@ -438,12 +439,12 @@ query_expression "query_expression"
 //= type non_join_query_expression = { tag: "non_join_query_expression" };
 //= printers["non_join_query_expression"] = function(value) { throw 'print "non_join_query_expression": unimplemented'; };
 non_join_query_expression "non_join_query_expression"
-  = $(non_join_query_term (_? ("UNION"i / "EXCEPT"i) (_? "ALL"i)? (_? corresponding_spec)? _? query_term)*)
+  = $(non_join_query_term (_? (UNION / EXCEPT) (_? ALL)? (_? corresponding_spec)? _ query_term)*)
 
 //= type non_join_query_term = { tag: "non_join_query_term" };
 //= printers["non_join_query_term"] = function(value) { throw 'print "non_join_query_term": unimplemented'; };
 non_join_query_term "non_join_query_term"
-  = $(query_term (_? "INTERSECT"i (_? "ALL"i)? (_? corresponding_spec)? _? query_primary)*)
+  = $(query_term (_? INTERSECT (_? ALL)? (_? corresponding_spec)? _ query_primary)*)
 
 //= type query_term = { tag: "query_term" };
 //= printers["query_term"] = function(value) { throw 'print "query_term": unimplemented'; };
@@ -456,24 +457,24 @@ query_term "query_term"
 joined_table "joined_table"
   = cross_join
   / qualified_join
-  / $(left_paren _? joined_table _? right_paren)
+  / $(left_paren _ joined_table _ right_paren)
 
 //= type cross_join = { tag: "cross_join" };
 //= printers["cross_join"] = function(value) { throw 'print "cross_join": unimplemented'; };
 cross_join "cross_join"
-  = $(table_reference _? "CROSS"i _? "JOIN"i _? table_reference)
+  = $(table_reference _ CROSS _ JOIN _ table_reference)
 
 //= type table_reference = { tag: "table_reference" };
 //= printers["table_reference"] = function(value) { throw 'print "table_reference": unimplemented'; };
 table_reference "table_reference"
-  = $(table_reference_factor (_? ("CROSS"i _? "JOIN"i / "NATURAL"i? (_? join_type)? _? "JOIN"i) _? table_reference_factor (_? join_specification)?)*)
-  / $(left_paren _? joined_table _? right_paren)
+  = $(table_reference_factor (_? (CROSS _ JOIN / NATURAL? (_? join_type)? _ JOIN) _ table_reference_factor (_? join_specification)?)*)
+  / $(left_paren _ joined_table _ right_paren)
 
 //= type table_reference_factor = { tag: "table_reference_factor" };
 //= printers["table_reference_factor"] = function(value) { throw 'print "table_reference_factor": unimplemented'; };
 table_reference_factor "table_reference_factor"
   = $(table_name (_? correlation_specification)?)
-  / $(derived_table _? correlation_specification)
+  / $(derived_table _ correlation_specification)
 
 //= type derived_table = { tag: "derived_table" };
 //= printers["derived_table"] = function(value) { throw 'print "derived_table": unimplemented'; };
@@ -494,33 +495,33 @@ join_specification "join_specification"
 //= type join_condition = { tag: "join_condition" };
 //= printers["join_condition"] = function(value) { throw 'print "join_condition": unimplemented'; };
 join_condition "join_condition"
-  = $("ON"i _? search_condition)
+  = $(ON _ search_condition)
 
 //= type search_condition = { tag: "search_condition" };
 //= printers["search_condition"] = function(value) { throw 'print "search_condition": unimplemented'; };
 search_condition "search_condition"
-  = $(boolean_term (_? "OR"i _? boolean_term)*)
+  = $(boolean_term (_? OR _ boolean_term)*)
 
 //= type boolean_term = { tag: "boolean_term" };
 //= printers["boolean_term"] = function(value) { throw 'print "boolean_term": unimplemented'; };
 boolean_term "boolean_term"
-  = $(boolean_factor (_? "AND"i _? boolean_factor)*)
+  = $(boolean_factor (_? AND _ boolean_factor)*)
 
 //= type boolean_factor = { tag: "boolean_factor" };
 //= printers["boolean_factor"] = function(value) { throw 'print "boolean_factor": unimplemented'; };
 boolean_factor "boolean_factor"
-  = $(("NOT"i _?)? boolean_test)
+  = $((NOT _?)? boolean_test)
 
 //= type boolean_test = { tag: "boolean_test" };
 //= printers["boolean_test"] = function(value) { throw 'print "boolean_test": unimplemented'; };
 boolean_test "boolean_test"
-  = $(boolean_primary (_? "IS"i (_? "NOT"i)? _? truth_value)?)
+  = $(boolean_primary (_? IS (_? NOT)? _ truth_value)?)
 
 //= type boolean_primary = { tag: "boolean_primary" };
 //= printers["boolean_primary"] = function(value) { throw 'print "boolean_primary": unimplemented'; };
 boolean_primary "boolean_primary"
   = predicate
-  / $(left_paren _? search_condition _? right_paren)
+  / $(left_paren _ search_condition _ right_paren)
 
 //= type predicate = { tag: "predicate" };
 //= printers["predicate"] = function(value) { throw 'print "predicate": unimplemented'; };
@@ -538,13 +539,13 @@ predicate "predicate"
 //= type between_predicate = { tag: "between_predicate" };
 //= printers["between_predicate"] = function(value) { throw 'print "between_predicate": unimplemented'; };
 between_predicate "between_predicate"
-  = $(row_value_constructor (_? "NOT"i)? _? "BETWEEN"i _? row_value_constructor _? "AND"i _? row_value_constructor)
+  = $(row_value_constructor (_? NOT)? _ BETWEEN _ row_value_constructor _ AND _ row_value_constructor)
 
 //= type row_value_constructor = { tag: "row_value_constructor" };
 //= printers["row_value_constructor"] = function(value) { throw 'print "row_value_constructor": unimplemented'; };
 row_value_constructor "row_value_constructor"
   = row_value_constructor_element
-  / $(left_paren _? row_value_constructor_list _? right_paren)
+  / $(left_paren _ row_value_constructor_list _ right_paren)
   / row_subquery
 
 //= type row_value_constructor_element = { tag: "row_value_constructor_element" };
@@ -557,7 +558,7 @@ row_value_constructor_element "row_value_constructor_element"
 //= type row_value_constructor_list = { tag: "row_value_constructor_list" };
 //= printers["row_value_constructor_list"] = function(value) { throw 'print "row_value_constructor_list": unimplemented'; };
 row_value_constructor_list "row_value_constructor_list"
-  = $(row_value_constructor_element (_? comma _? row_value_constructor_element)*)
+  = $(row_value_constructor_element (_? comma _ row_value_constructor_element)*)
 
 //= type row_subquery = { tag: "row_subquery" };
 //= printers["row_subquery"] = function(value) { throw 'print "row_subquery": unimplemented'; };
@@ -567,28 +568,28 @@ row_subquery "row_subquery"
 //= type in_predicate = { tag: "in_predicate" };
 //= printers["in_predicate"] = function(value) { throw 'print "in_predicate": unimplemented'; };
 in_predicate "in_predicate"
-  = $(row_value_constructor (_? "NOT"i)? _? "IN"i _? in_predicate_value)
+  = $(row_value_constructor (_? NOT)? _ IN _ in_predicate_value)
 
 //= type in_predicate_value = { tag: "in_predicate_value" };
 //= printers["in_predicate_value"] = function(value) { throw 'print "in_predicate_value": unimplemented'; };
 in_predicate_value "in_predicate_value"
   = table_subquery
-  / $(left_paren _? in_value_list _? right_paren)
+  / $(left_paren _ in_value_list _ right_paren)
 
 //= type in_value_list = { tag: "in_value_list" };
 //= printers["in_value_list"] = function(value) { throw 'print "in_value_list": unimplemented'; };
 in_value_list "in_value_list"
-  = $(value_expression (_? comma _? value_expression)+)
+  = $(value_expression (_? comma _ value_expression)+)
 
 //= type comparison_predicate = { tag: "comparison_predicate" };
 //= printers["comparison_predicate"] = function(value) { throw 'print "comparison_predicate": unimplemented'; };
 comparison_predicate "comparison_predicate"
-  = $(row_value_constructor _? comp_op _? row_value_constructor)
+  = $(row_value_constructor _ comp_op _ row_value_constructor)
 
 //= type like_predicate = { tag: "like_predicate" };
 //= printers["like_predicate"] = function(value) { throw 'print "like_predicate": unimplemented'; };
 like_predicate "like_predicate"
-  = $(match_value (_? "NOT"i)? _? "LIKE"i _? pattern (_? "ESCAPE"i _? escape_character)?)
+  = $(match_value (_? NOT)? _ LIKE _ pattern (_? ESCAPE _ escape_character)?)
 
 //= type match_value = { tag: "match_value" };
 //= printers["match_value"] = function(value) { throw 'print "match_value": unimplemented'; };
@@ -608,27 +609,27 @@ escape_character "escape_character"
 //= type null_predicate = { tag: "null_predicate" };
 //= printers["null_predicate"] = function(value) { throw 'print "null_predicate": unimplemented'; };
 null_predicate "null_predicate"
-  = $(row_value_constructor _? "IS"i (_? "NOT"i)? _? "NULL"i)
+  = $(row_value_constructor _ IS (_? NOT)? _ NULL)
 
 //= type quantified_comparison_predicate = { tag: "quantified_comparison_predicate" };
 //= printers["quantified_comparison_predicate"] = function(value) { throw 'print "quantified_comparison_predicate": unimplemented'; };
 quantified_comparison_predicate "quantified_comparison_predicate"
-  = $(row_value_constructor _? comp_op _? quantifier _? table_subquery)
+  = $(row_value_constructor _ comp_op _ quantifier _ table_subquery)
 
 //= type exists_predicate = { tag: "exists_predicate" };
 //= printers["exists_predicate"] = function(value) { throw 'print "exists_predicate": unimplemented'; };
 exists_predicate "exists_predicate"
-  = $("EXISTS"i _? table_subquery)
+  = $(EXISTS _ table_subquery)
 
 //= type match_predicate = { tag: "match_predicate" };
 //= printers["match_predicate"] = function(value) { throw 'print "match_predicate": unimplemented'; };
 match_predicate "match_predicate"
-  = $(row_value_constructor _? "MATCH"i (_? "UNIQUE"i)? (_? ("PARTIAL"i / "FULL"i))? _? table_subquery)
+  = $(row_value_constructor _ MATCH (_? UNIQUE)? (_? (PARTIAL / FULL))? _ table_subquery)
 
 //= type overlaps_predicate = { tag: "overlaps_predicate" };
 //= printers["overlaps_predicate"] = function(value) { throw 'print "overlaps_predicate": unimplemented'; };
 overlaps_predicate "overlaps_predicate"
-  = $(row_value_constructor_1 _? "OVERLAPS"i _? row_value_constructor_2)
+  = $(row_value_constructor_1 _ OVERLAPS _ row_value_constructor_2)
 
 //= type row_value_constructor_1 = { tag: "row_value_constructor_1" };
 //= printers["row_value_constructor_1"] = function(value) { throw 'print "row_value_constructor_1": unimplemented'; };
@@ -643,13 +644,13 @@ row_value_constructor_2 "row_value_constructor_2"
 //= type qualified_join = { tag: "qualified_join" };
 //= printers["qualified_join"] = function(value) { throw 'print "qualified_join": unimplemented'; };
 qualified_join "qualified_join"
-  = $(table_reference (_? "NATURAL"i)? (_? join_type)? _? "JOIN"i _? table_reference (_? join_specification)?)
+  = $(table_reference (_? NATURAL)? (_? join_type)? _ JOIN _ table_reference (_? join_specification)?)
 
 //= type non_join_query_primary = { tag: "non_join_query_primary" };
 //= printers["non_join_query_primary"] = function(value) { throw 'print "non_join_query_primary": unimplemented'; };
 non_join_query_primary "non_join_query_primary"
   = simple_table
-  / $(left_paren _? non_join_query_expression _? right_paren)
+  / $(left_paren _ non_join_query_expression _ right_paren)
 
 //= type simple_table = { tag: "simple_table" };
 //= printers["simple_table"] = function(value) { throw 'print "simple_table": unimplemented'; };
@@ -661,19 +662,19 @@ simple_table "simple_table"
 //= type query_specification = { tag: "query_specification" };
 //= printers["query_specification"] = function(value) { throw 'print "query_specification": unimplemented'; };
 query_specification "query_specification"
-  = $("SELECT"i (_? set_quantifier)? _? select_list _? table_expression)
+  = $(SELECT (_? set_quantifier)? _ select_list _ table_expression)
 
 //= type select_list = { tag: "select_list" };
 //= printers["select_list"] = function(value) { throw 'print "select_list": unimplemented'; };
 select_list "select_list"
   = asterisk
-  / $(select_sublist (_? comma _? select_sublist)*)
+  / $(select_sublist (_? comma _ select_sublist)*)
 
 //= type select_sublist = { tag: "select_sublist" };
 //= printers["select_sublist"] = function(value) { throw 'print "select_sublist": unimplemented'; };
 select_sublist "select_sublist"
   = derived_column
-  / $(qualifier _? period _? asterisk)
+  / $(qualifier _ period _ asterisk)
 
 //= type derived_column = { tag: "derived_column" };
 //= printers["derived_column"] = function(value) { throw 'print "derived_column": unimplemented'; };
@@ -688,27 +689,27 @@ table_expression "table_expression"
 //= type from_clause = { tag: "from_clause" };
 //= printers["from_clause"] = function(value) { throw 'print "from_clause": unimplemented'; };
 from_clause "from_clause"
-  = $("FROM"i _? table_reference (_? comma _? table_reference)*)
+  = $(FROM _ table_reference (_? comma _ table_reference)*)
 
 //= type where_clause = { tag: "where_clause" };
 //= printers["where_clause"] = function(value) { throw 'print "where_clause": unimplemented'; };
 where_clause "where_clause"
-  = $("WHERE"i _? search_condition)
+  = $(WHERE _ search_condition)
 
 //= type having_clause = { tag: "having_clause" };
 //= printers["having_clause"] = function(value) { throw 'print "having_clause": unimplemented'; };
 having_clause "having_clause"
-  = $("HAVING"i _? search_condition)
+  = $(HAVING _ search_condition)
 
 //= type table_value_constructor = { tag: "table_value_constructor" };
 //= printers["table_value_constructor"] = function(value) { throw 'print "table_value_constructor": unimplemented'; };
 table_value_constructor "table_value_constructor"
-  = $("VALUES"i _? table_value_constructor_list)
+  = $(VALUES _ table_value_constructor_list)
 
 //= type table_value_constructor_list = { tag: "table_value_constructor_list" };
 //= printers["table_value_constructor_list"] = function(value) { throw 'print "table_value_constructor_list": unimplemented'; };
 table_value_constructor_list "table_value_constructor_list"
-  = $(row_value_constructor (_? comma _? row_value_constructor)*)
+  = $(row_value_constructor (_? comma _ row_value_constructor)*)
 
 //= type query_primary = { tag: "query_primary" };
 //= printers["query_primary"] = function(value) { throw 'print "query_primary": unimplemented'; };
@@ -725,8 +726,8 @@ case_expression "case_expression"
 //= type case_abbreviation = { tag: "case_abbreviation" };
 //= printers["case_abbreviation"] = function(value) { throw 'print "case_abbreviation": unimplemented'; };
 case_abbreviation "case_abbreviation"
-  = $("NULLIF"i _? left_paren _? value_expression _? comma _? value_expression _? right_paren)
-  / $("COALESCE"i _? left_paren _? value_expression (_? comma _? value_expression)+ _? right_paren)
+  = $(NULLIF _ left_paren _ value_expression _ comma _ value_expression _ right_paren)
+  / $(COALESCE _ left_paren _ value_expression (_? comma _ value_expression)+ _ right_paren)
 
 //= type case_specification = { tag: "case_specification" };
 //= printers["case_specification"] = function(value) { throw 'print "case_specification": unimplemented'; };
@@ -737,7 +738,7 @@ case_specification "case_specification"
 //= type simple_case = { tag: "simple_case" };
 //= printers["simple_case"] = function(value) { throw 'print "simple_case": unimplemented'; };
 simple_case "simple_case"
-  = $("CASE"i _? case_operand (_? simple_when_clause)+ (_? else_clause)? _? "END"i)
+  = $(CASE _ case_operand (_? simple_when_clause)+ (_? else_clause)? _ END)
 
 //= type case_operand = { tag: "case_operand" };
 //= printers["case_operand"] = function(value) { throw 'print "case_operand": unimplemented'; };
@@ -747,7 +748,7 @@ case_operand "case_operand"
 //= type simple_when_clause = { tag: "simple_when_clause" };
 //= printers["simple_when_clause"] = function(value) { throw 'print "simple_when_clause": unimplemented'; };
 simple_when_clause "simple_when_clause"
-  = $("WHEN"i _? when_operand _? "THEN"i _? result)
+  = $(WHEN _ when_operand _ THEN _ result)
 
 //= type when_operand = { tag: "when_operand" };
 //= printers["when_operand"] = function(value) { throw 'print "when_operand": unimplemented'; };
@@ -758,7 +759,7 @@ when_operand "when_operand"
 //= printers["result"] = function(value) { throw 'print "result": unimplemented'; };
 result "result"
   = result_expression
-  / "NULL"i
+  / NULL
 
 //= type result_expression = { tag: "result_expression" };
 //= printers["result_expression"] = function(value) { throw 'print "result_expression": unimplemented'; };
@@ -768,28 +769,28 @@ result_expression "result_expression"
 //= type else_clause = { tag: "else_clause" };
 //= printers["else_clause"] = function(value) { throw 'print "else_clause": unimplemented'; };
 else_clause "else_clause"
-  = $("ELSE"i _? result)
+  = $(ELSE _ result)
 
 //= type searched_case = { tag: "searched_case" };
 //= printers["searched_case"] = function(value) { throw 'print "searched_case": unimplemented'; };
 searched_case "searched_case"
-  = $("CASE"i (_? searched_when_clause)+ (_? else_clause)? _? "END"i)
+  = $(CASE (_? searched_when_clause)+ (_? else_clause)? _ END)
 
 //= type searched_when_clause = { tag: "searched_when_clause" };
 //= printers["searched_when_clause"] = function(value) { throw 'print "searched_when_clause": unimplemented'; };
 searched_when_clause "searched_when_clause"
-  = $("WHEN"i _? search_condition _? "THEN"i _? result)
+  = $(WHEN _ search_condition _ THEN _ result)
 
 //= type cast_specification = { tag: "cast_specification" };
 //= printers["cast_specification"] = function(value) { throw 'print "cast_specification": unimplemented'; };
 cast_specification "cast_specification"
-  = $("CAST"i _? left_paren _? cast_operand _? "AS"i _? cast_target _? right_paren)
+  = $(CAST _ left_paren _ cast_operand _ AS _ cast_target _ right_paren)
 
 //= type cast_operand = { tag: "cast_operand" };
 //= printers["cast_operand"] = function(value) { throw 'print "cast_operand": unimplemented'; };
 cast_operand "cast_operand"
   = value_expression
-  / "NULL"i
+  / NULL
 
 //= type quantifier = { tag: "quantifier" };
 //= printers["quantifier"] = function(value) { throw 'print "quantifier": unimplemented'; };
@@ -800,52 +801,52 @@ quantifier "quantifier"
 //= type some = { tag: "some" };
 //= printers["some"] = function(value) { throw 'print "some": unimplemented'; };
 some "some"
-  = "SOME"i
-  / "ANY"i
+  = SOME
+  / ANY
 
 //= type all = { tag: "all" };
 //= printers["all"] = function(value) { throw 'print "all": unimplemented'; };
 all "all"
-  = "ALL"i
+  = ALL
 
 //= type trim_specification = { tag: "trim_specification" };
 //= printers["trim_specification"] = function(value) { throw 'print "trim_specification": unimplemented'; };
 trim_specification "trim_specification"
-  = "LEADING"i
-  / "TRAILING"i
-  / "BOTH"i
+  = LEADING
+  / TRAILING
+  / BOTH
 
 //= type set_quantifier = { tag: "set_quantifier" };
 //= printers["set_quantifier"] = function(value) { throw 'print "set_quantifier": unimplemented'; };
 set_quantifier "set_quantifier"
-  = "DISTINCT"i
-  / "ALL"i
+  = DISTINCT
+  / ALL
 
 //= type set_function_type = { tag: "set_function_type" };
 //= printers["set_function_type"] = function(value) { throw 'print "set_function_type": unimplemented'; };
 set_function_type "set_function_type"
-  = "AVG"i
-  / "MAX"i
-  / "MIN"i
-  / "SUM"i
-  / "COUNT"i
+  = AVG
+  / MAX
+  / MIN
+  / SUM
+  / COUNT
 
 //= type default_specification = { tag: "default_specification" };
 //= printers["default_specification"] = function(value) { throw 'print "default_specification": unimplemented'; };
 default_specification "default_specification"
-  = "DEFAULT"i
+  = DEFAULT
 
 //= type null_specification = { tag: "null_specification" };
 //= printers["null_specification"] = function(value) { throw 'print "null_specification": unimplemented'; };
 null_specification "null_specification"
-  = "NULL"i
+  = NULL
 
 //= type truth_value = { tag: "truth_value" };
 //= printers["truth_value"] = function(value) { throw 'print "truth_value": unimplemented'; };
 truth_value "truth_value"
-  = "TRUE"i
-  / "FALSE"i
-  / "UNKNOWN"i
+  = TRUE
+  / FALSE
+  / UNKNOWN
 
 //= type extract_field = { tag: "extract_field" };
 //= printers["extract_field"] = function(value) { throw 'print "extract_field": unimplemented'; };
@@ -856,23 +857,23 @@ extract_field "extract_field"
 //= type time_zone_field = { tag: "time_zone_field" };
 //= printers["time_zone_field"] = function(value) { throw 'print "time_zone_field": unimplemented'; };
 time_zone_field "time_zone_field"
-  = "TIMEZONE_HOUR"i
-  / "TIMEZONE_MINUTE"i
+  = TIMEZONE_HOUR
+  / TIMEZONE_MINUTE
 
 //= type datetime_field = { tag: "datetime_field" };
 //= printers["datetime_field"] = function(value) { throw 'print "datetime_field": unimplemented'; };
 datetime_field "datetime_field"
   = non_second_datetime_field
-  / "SECOND"i
+  / SECOND
 
 //= type non_second_datetime_field = { tag: "non_second_datetime_field" };
 //= printers["non_second_datetime_field"] = function(value) { throw 'print "non_second_datetime_field": unimplemented'; };
 non_second_datetime_field "non_second_datetime_field"
-  = "YEAR"i
-  / "MONTH"i
-  / "DAY"i
-  / "HOUR"i
-  / "MINUTE"i
+  = YEAR
+  / MONTH
+  / DAY
+  / HOUR
+  / MINUTE
 
 //= type concatenation_operator = { tag: "concatenation_operator" };
 //= printers["concatenation_operator"] = function(value) { throw 'print "concatenation_operator": unimplemented'; };
@@ -882,16 +883,16 @@ concatenation_operator "concatenation_operator"
 //= type join_type = { tag: "join_type" };
 //= printers["join_type"] = function(value) { throw 'print "join_type": unimplemented'; };
 join_type "join_type"
-  = "INNER"i
-  / $(outer_join_type (_? "OUTER"i)?)
-  / "UNION"i
+  = INNER
+  / $(outer_join_type (_? OUTER)?)
+  / UNION
 
 //= type outer_join_type = { tag: "outer_join_type" };
 //= printers["outer_join_type"] = function(value) { throw 'print "outer_join_type": unimplemented'; };
 outer_join_type "outer_join_type"
-  = "LEFT"i
-  / "RIGHT"i
-  / "FULL"i
+  = LEFT
+  / RIGHT
+  / FULL
 
 //= type comp_op = { tag: "comp_op" };
 //= printers["comp_op"] = function(value) { throw 'print "comp_op": unimplemented'; };
@@ -977,14 +978,14 @@ left_paren "left_paren"
 //= type interval_qualifier = { tag: "interval_qualifier" };
 //= printers["interval_qualifier"] = function(value) { throw 'print "interval_qualifier": unimplemented'; };
 interval_qualifier "interval_qualifier"
-  = $(start_field _? "TO"i _? end_field)
+  = $(start_field _ TO _ end_field)
   / single_datetime_field
 
 //= type end_field = { tag: "end_field" };
 //= printers["end_field"] = function(value) { throw 'print "end_field": unimplemented'; };
 end_field "end_field"
   = non_second_datetime_field
-  / $("SECOND"i (_? left_paren _? interval_fractional_seconds_precision _? right_paren)?)
+  / $(SECOND (_? left_paren _ interval_fractional_seconds_precision _ right_paren)?)
 
 //= type interval_fractional_seconds_precision = { tag: "interval_fractional_seconds_precision" };
 //= printers["interval_fractional_seconds_precision"] = function(value) { throw 'print "interval_fractional_seconds_precision": unimplemented'; };
@@ -999,8 +1000,8 @@ unsigned_integer "unsigned_integer"
 //= type single_datetime_field = { tag: "single_datetime_field" };
 //= printers["single_datetime_field"] = function(value) { throw 'print "single_datetime_field": unimplemented'; };
 single_datetime_field "single_datetime_field"
-  = $(non_second_datetime_field (_? left_paren _? interval_leading_field_precision _? right_paren)?)
-  / $("SECOND"i (_? left_paren _? interval_leading_field_precision (_? comma _? left_paren _? interval_fractional_seconds_precision)? _? right_paren)?)
+  = $(non_second_datetime_field (_? left_paren _ interval_leading_field_precision _ right_paren)?)
+  / $(SECOND (_? left_paren _ interval_leading_field_precision (_? comma _ left_paren _ interval_fractional_seconds_precision)? _ right_paren)?)
 
 //= type interval_leading_field_precision = { tag: "interval_leading_field_precision" };
 //= printers["interval_leading_field_precision"] = function(value) { throw 'print "interval_leading_field_precision": unimplemented'; };
@@ -1010,7 +1011,7 @@ interval_leading_field_precision "interval_leading_field_precision"
 //= type start_field = { tag: "start_field" };
 //= printers["start_field"] = function(value) { throw 'print "start_field": unimplemented'; };
 start_field "start_field"
-  = $(non_second_datetime_field (_? left_paren _? interval_leading_field_precision _? right_paren)?)
+  = $(non_second_datetime_field (_? left_paren _ interval_leading_field_precision _ right_paren)?)
 
 //= type datetime_value_function = { tag: "datetime_value_function" };
 //= printers["datetime_value_function"] = function(value) { throw 'print "datetime_value_function": unimplemented'; };
@@ -1022,12 +1023,12 @@ datetime_value_function "datetime_value_function"
 //= type current_date_value_function = { tag: "current_date_value_function" };
 //= printers["current_date_value_function"] = function(value) { throw 'print "current_date_value_function": unimplemented'; };
 current_date_value_function "current_date_value_function"
-  = "CURRENT_DATE"i
+  = CURRENT_DATE
 
 //= type current_timestamp_value_function = { tag: "current_timestamp_value_function" };
 //= printers["current_timestamp_value_function"] = function(value) { throw 'print "current_timestamp_value_function": unimplemented'; };
 current_timestamp_value_function "current_timestamp_value_function"
-  = $("CURRENT_TIMESTAMP"i (_? left_paren _? timestamp_precision _? right_paren)?)
+  = $(CURRENT_TIMESTAMP (_? left_paren _ timestamp_precision _ right_paren)?)
 
 //= type timestamp_precision = { tag: "timestamp_precision" };
 //= printers["timestamp_precision"] = function(value) { throw 'print "timestamp_precision": unimplemented'; };
@@ -1042,7 +1043,7 @@ time_fractional_seconds_precision "time_fractional_seconds_precision"
 //= type current_time_value_function = { tag: "current_time_value_function" };
 //= printers["current_time_value_function"] = function(value) { throw 'print "current_time_value_function": unimplemented'; };
 current_time_value_function "current_time_value_function"
-  = $("CURRENT_TIME"i (_? left_paren _? time_precision _? right_paren)?)
+  = $(CURRENT_TIME (_? left_paren _ time_precision _ right_paren)?)
 
 //= type time_precision = { tag: "time_precision" };
 //= printers["time_precision"] = function(value) { throw 'print "time_precision": unimplemented'; };
@@ -1052,7 +1053,7 @@ time_precision "time_precision"
 //= type as_clause = { tag: "as_clause" };
 //= printers["as_clause"] = function(value) { throw 'print "as_clause": unimplemented'; };
 as_clause "as_clause"
-  = $(("AS"i _?)? column_name)
+  = $((AS _?)? column_name)
 
 //= type column_name = { tag: "column_name" };
 //= printers["column_name"] = function(value) { throw 'print "column_name": unimplemented'; };
@@ -1062,7 +1063,7 @@ column_name "column_name"
 //= type corresponding_spec = { tag: "corresponding_spec" };
 //= printers["corresponding_spec"] = function(value) { throw 'print "corresponding_spec": unimplemented'; };
 corresponding_spec "corresponding_spec"
-  = $("CORRESPONDING"i (_? "BY"i _? left_paren _? corresponding_column_list _? right_paren)?)
+  = $(CORRESPONDING (_? BY _ left_paren _ corresponding_column_list _ right_paren)?)
 
 //= type corresponding_column_list = { tag: "corresponding_column_list" };
 //= printers["corresponding_column_list"] = function(value) { throw 'print "corresponding_column_list": unimplemented'; };
@@ -1072,12 +1073,12 @@ corresponding_column_list "corresponding_column_list"
 //= type column_name_list = { tag: "column_name_list" };
 //= printers["column_name_list"] = function(value) { throw 'print "column_name_list": unimplemented'; };
 column_name_list "column_name_list"
-  = $(column_name (_? comma _? column_name)*)
+  = $(column_name (_? comma _ column_name)*)
 
 //= type named_columns_join = { tag: "named_columns_join" };
 //= printers["named_columns_join"] = function(value) { throw 'print "named_columns_join": unimplemented'; };
 named_columns_join "named_columns_join"
-  = $("USING"i _? left_paren _? join_column_list _? right_paren)
+  = $(USING _ left_paren _ join_column_list _ right_paren)
 
 //= type join_column_list = { tag: "join_column_list" };
 //= printers["join_column_list"] = function(value) { throw 'print "join_column_list": unimplemented'; };
@@ -1087,7 +1088,7 @@ join_column_list "join_column_list"
 //= type correlation_specification = { tag: "correlation_specification" };
 //= printers["correlation_specification"] = function(value) { throw 'print "correlation_specification": unimplemented'; };
 correlation_specification "correlation_specification"
-  = $(("AS"i _?)? correlation_name (_? left_paren _? derived_column_list _? right_paren)?)
+  = $((AS _?)? correlation_name (_? left_paren _ derived_column_list _ right_paren)?)
 
 //= type correlation_name = { tag: "correlation_name" };
 //= printers["correlation_name"] = function(value) { throw 'print "correlation_name": unimplemented'; };
@@ -1112,7 +1113,7 @@ form_of_use_conversion_name "form_of_use_conversion_name"
 //= type collate_clause = { tag: "collate_clause" };
 //= printers["collate_clause"] = function(value) { throw 'print "collate_clause": unimplemented'; };
 collate_clause "collate_clause"
-  = $("COLLATE"i _? collation_name)
+  = $(COLLATE _ collation_name)
 
 //= type collation_name = { tag: "collation_name" };
 //= printers["collation_name"] = function(value) { throw 'print "collation_name": unimplemented'; };
@@ -1122,7 +1123,7 @@ collation_name "collation_name"
 //= type explicit_table = { tag: "explicit_table" };
 //= printers["explicit_table"] = function(value) { throw 'print "explicit_table": unimplemented'; };
 explicit_table "explicit_table"
-  = $("TABLE"i _? table_name)
+  = $(TABLE _ table_name)
 
 //= type qualifier = { tag: "qualifier" };
 //= printers["qualifier"] = function(value) { throw 'print "qualifier": unimplemented'; };
@@ -1139,7 +1140,7 @@ cast_target "cast_target"
 //= type data_type = { tag: "data_type" };
 //= printers["data_type"] = function(value) { throw 'print "data_type": unimplemented'; };
 data_type "data_type"
-  = $(character_string_type (_? "CHARACTER"i _? "SET"i _? character_set_name)?)
+  = $(character_string_type (_? CHARACTER _ SET _ character_set_name)?)
   / national_character_string_type
   / bit_string_type
   / numeric_type
@@ -1149,14 +1150,14 @@ data_type "data_type"
 //= type interval_type = { tag: "interval_type" };
 //= printers["interval_type"] = function(value) { throw 'print "interval_type": unimplemented'; };
 interval_type "interval_type"
-  = $("INTERVAL"i _? interval_qualifier)
+  = $(INTERVAL _ interval_qualifier)
 
 //= type datetime_type = { tag: "datetime_type" };
 //= printers["datetime_type"] = function(value) { throw 'print "datetime_type": unimplemented'; };
 datetime_type "datetime_type"
-  = "DATE"i
-  / $("TIME"i (_? left_paren _? time_precision _? right_paren)? (_? "WITH"i _? "TIME"i _? "ZONE"i)?)
-  / $("TIMESTAMP"i (_? left_paren _? timestamp_precision _? right_paren)? (_? "WITH"i _? "TIME"i _? "ZONE"i)?)
+  = DATE
+  / $(TIME (_? left_paren _ time_precision _ right_paren)? (_? WITH _ TIME _ ZONE)?)
+  / $(TIMESTAMP (_? left_paren _ timestamp_precision _ right_paren)? (_? WITH _ TIME _ ZONE)?)
 
 //= type numeric_type = { tag: "numeric_type" };
 //= printers["numeric_type"] = function(value) { throw 'print "numeric_type": unimplemented'; };
@@ -1167,9 +1168,9 @@ numeric_type "numeric_type"
 //= type approximate_numeric_type = { tag: "approximate_numeric_type" };
 //= printers["approximate_numeric_type"] = function(value) { throw 'print "approximate_numeric_type": unimplemented'; };
 approximate_numeric_type "approximate_numeric_type"
-  = $("FLOAT"i (_? left_paren _? precision _? right_paren)?)
-  / "REAL"i
-  / $("DOUBLE"i _? "PRECISION"i)
+  = $(FLOAT (_? left_paren _ precision _ right_paren)?)
+  / REAL
+  / $(DOUBLE _ PRECISION)
 
 //= type precision = { tag: "precision" };
 //= printers["precision"] = function(value) { throw 'print "precision": unimplemented'; };
@@ -1179,12 +1180,12 @@ precision "precision"
 //= type exact_numeric_type = { tag: "exact_numeric_type" };
 //= printers["exact_numeric_type"] = function(value) { throw 'print "exact_numeric_type": unimplemented'; };
 exact_numeric_type "exact_numeric_type"
-  = $("NUMERIC"i (_? left_paren _? precision (_? comma _? scale)? _? right_paren)?)
-  / $("DECIMAL"i (_? left_paren _? precision (_? comma _? scale)? _? right_paren)?)
-  / $("DEC"i (_? left_paren _? precision (_? comma _? scale)? _? right_paren)?)
-  / "INTEGER"i
-  / "INT"i
-  / "SMALLINT"i
+  = $(NUMERIC (_? left_paren _ precision (_? comma _ scale)? _ right_paren)?)
+  / $(DECIMAL (_? left_paren _ precision (_? comma _ scale)? _ right_paren)?)
+  / $(DEC (_? left_paren _ precision (_? comma _ scale)? _ right_paren)?)
+  / INTEGER
+  / INT
+  / SMALLINT
 
 //= type scale = { tag: "scale" };
 //= printers["scale"] = function(value) { throw 'print "scale": unimplemented'; };
@@ -1194,8 +1195,8 @@ scale "scale"
 //= type bit_string_type = { tag: "bit_string_type" };
 //= printers["bit_string_type"] = function(value) { throw 'print "bit_string_type": unimplemented'; };
 bit_string_type "bit_string_type"
-  = $("BIT"i (_? left_paren _? length _? right_paren)?)
-  / $("BIT"i _? "VARYING"i (_? left_paren _? length _? right_paren)?)
+  = $(BIT (_? left_paren _ length _ right_paren)?)
+  / $(BIT _ VARYING (_? left_paren _ length _ right_paren)?)
 
 //= type length = { tag: "length" };
 //= printers["length"] = function(value) { throw 'print "length": unimplemented'; };
@@ -1205,21 +1206,21 @@ length "length"
 //= type national_character_string_type = { tag: "national_character_string_type" };
 //= printers["national_character_string_type"] = function(value) { throw 'print "national_character_string_type": unimplemented'; };
 national_character_string_type "national_character_string_type"
-  = $("NATIONAL"i _? "CHARACTER"i (_? left_paren _? length _? right_paren)?)
-  / $("NATIONAL"i _? "CHAR"i (_? left_paren _? length _? right_paren)?)
-  / $("NCHAR"i (_? left_paren _? length _? right_paren)?)
-  / $("NATIONAL"i _? "CHARACTER"i _? "VARYING"i (_? left_paren _? length _? right_paren)?)
-  / $("NATIONAL"i _? "CHAR"i _? "VARYING"i (_? left_paren _? length _? right_paren)?)
-  / $("NCHAR"i _? "VARYING"i (_? left_paren _? length _? right_paren)?)
+  = $(NATIONAL _ CHARACTER (_? left_paren _ length _ right_paren)?)
+  / $(NATIONAL _ CHAR (_? left_paren _ length _ right_paren)?)
+  / $(NCHAR (_? left_paren _ length _ right_paren)?)
+  / $(NATIONAL _ CHARACTER _ VARYING (_? left_paren _ length _ right_paren)?)
+  / $(NATIONAL _ CHAR _ VARYING (_? left_paren _ length _ right_paren)?)
+  / $(NCHAR _ VARYING (_? left_paren _ length _ right_paren)?)
 
 //= type character_string_type = { tag: "character_string_type" };
 //= printers["character_string_type"] = function(value) { throw 'print "character_string_type": unimplemented'; };
 character_string_type "character_string_type"
-  = $("CHARACTER"i (_? left_paren _? length _? right_paren)?)
-  / $("CHAR"i (_? left_paren _? length _? right_paren)?)
-  / $("CHARACTER"i _? "VARYING"i (_? left_paren _? length _? right_paren)?)
-  / $("CHAR"i _? "VARYING"i (_? left_paren _? length _? right_paren)?)
-  / $("VARCHAR"i (_? left_paren _? length _? right_paren)?)
+  = $(CHARACTER (_? left_paren _ length _ right_paren)?)
+  / $(CHAR (_? left_paren _ length _ right_paren)?)
+  / $(CHARACTER _ VARYING (_? left_paren _ length _ right_paren)?)
+  / $(CHAR _ VARYING (_? left_paren _ length _ right_paren)?)
+  / $(VARCHAR (_? left_paren _ length _ right_paren)?)
 
 //= type domain_name = { tag: "domain_name" };
 //= printers["domain_name"] = function(value) { throw 'print "domain_name": unimplemented'; };
@@ -1234,12 +1235,12 @@ column_reference "column_reference"
 //= type group_by_clause = { tag: "group_by_clause" };
 //= printers["group_by_clause"] = function(value) { throw 'print "group_by_clause": unimplemented'; };
 group_by_clause "group_by_clause"
-  = $("GROUP"i _? "BY"i _? grouping_column_reference_list)
+  = $(GROUP _ BY _ grouping_column_reference_list)
 
 //= type grouping_column_reference_list = { tag: "grouping_column_reference_list" };
 //= printers["grouping_column_reference_list"] = function(value) { throw 'print "grouping_column_reference_list": unimplemented'; };
 grouping_column_reference_list "grouping_column_reference_list"
-  = $(grouping_column_reference (_? comma _? grouping_column_reference)*)
+  = $(grouping_column_reference (_? comma _ grouping_column_reference)*)
 
 //= type grouping_column_reference = { tag: "grouping_column_reference" };
 //= printers["grouping_column_reference"] = function(value) { throw 'print "grouping_column_reference": unimplemented'; };
@@ -1267,7 +1268,7 @@ unsigned_numeric_literal "unsigned_numeric_literal"
 //= printers["exact_numeric_literal"] = function(value) { throw 'print "exact_numeric_literal": unimplemented'; };
 exact_numeric_literal "exact_numeric_literal"
   = $(unsigned_integer (_? period (_? unsigned_integer)?)?)
-  / $(period _? unsigned_integer)
+  / $(period _ unsigned_integer)
 
 //= type approximate_numeric_literal = { tag: "approximate_numeric_literal" };
 //= printers["approximate_numeric_literal"] = function(value) { throw 'print "approximate_numeric_literal": unimplemented'; };
@@ -1371,7 +1372,7 @@ hexit "hexit"
 //= type interval_literal = { tag: "interval_literal" };
 //= printers["interval_literal"] = function(value) { throw 'print "interval_literal": unimplemented'; };
 interval_literal "interval_literal"
-  = $("INTERVAL"i (_? sign)? _? interval_string _? interval_qualifier)
+  = $(INTERVAL (_? sign)? _ interval_string _ interval_qualifier)
 
 //= type interval_string = { tag: "interval_string" };
 //= printers["interval_string"] = function(value) { throw 'print "interval_string": unimplemented'; };
@@ -1462,7 +1463,7 @@ datetime_literal "datetime_literal"
 //= type time_literal = { tag: "time_literal" };
 //= printers["time_literal"] = function(value) { throw 'print "time_literal": unimplemented'; };
 time_literal "time_literal"
-  = $("TIME"i _? time_string)
+  = $(TIME _ time_string)
 
 //= type time_string = { tag: "time_string" };
 //= printers["time_string"] = function(value) { throw 'print "time_string": unimplemented'; };
@@ -1472,7 +1473,7 @@ time_string "time_string"
 //= type time_zone_interval = { tag: "time_zone_interval" };
 //= printers["time_zone_interval"] = function(value) { throw 'print "time_zone_interval": unimplemented'; };
 time_zone_interval "time_zone_interval"
-  = $(sign _? hours_value _? colon _? minutes_value)
+  = $(sign _ hours_value _ colon _ minutes_value)
 
 //= type time_value = { tag: "time_value" };
 //= printers["time_value"] = function(value) { throw 'print "time_value": unimplemented'; };
@@ -1482,7 +1483,7 @@ time_value "time_value"
 //= type timestamp_literal = { tag: "timestamp_literal" };
 //= printers["timestamp_literal"] = function(value) { throw 'print "timestamp_literal": unimplemented'; };
 timestamp_literal "timestamp_literal"
-  = $("TIMESTAMP"i _? timestamp_string)
+  = $(TIMESTAMP _ timestamp_string)
 
 //= type timestamp_string = { tag: "timestamp_string" };
 //= printers["timestamp_string"] = function(value) { throw 'print "timestamp_string": unimplemented'; };
@@ -1497,7 +1498,7 @@ date_value "date_value"
 //= type date_literal = { tag: "date_literal" };
 //= printers["date_literal"] = function(value) { throw 'print "date_literal": unimplemented'; };
 date_literal "date_literal"
-  = $("DATE"i date_string)
+  = $(DATE date_string)
 
 //= type date_string = { tag: "date_string" };
 //= printers["date_string"] = function(value) { throw 'print "date_string": unimplemented'; };
@@ -1512,13 +1513,13 @@ character_string_literal "character_string_literal"
 //= type insert_statement = { tag: "insert_statement" };
 //= printers["insert_statement"] = function(value) { throw 'print "insert_statement": unimplemented'; };
 insert_statement "insert_statement"
-  = $("INSERT"i _? "INTO"i _? table_name _? insert_columns_and_source)
+  = $(INSERT _ INTO _ table_name _ insert_columns_and_source)
 
 //= type insert_columns_and_source = { tag: "insert_columns_and_source" };
 //= printers["insert_columns_and_source"] = function(value) { throw 'print "insert_columns_and_source": unimplemented'; };
 insert_columns_and_source "insert_columns_and_source"
-  = $((left_paren _? insert_column_list _? right_paren _?)? query_expression)
-  / $("DEFAULT"i _? "VALUES"i)
+  = $((left_paren _ insert_column_list _ right_paren _?)? query_expression)
+  / $(DEFAULT _ VALUES)
 
 //= type insert_column_list = { tag: "insert_column_list" };
 //= printers["insert_column_list"] = function(value) { throw 'print "insert_column_list": unimplemented'; };
@@ -1528,22 +1529,22 @@ insert_column_list "insert_column_list"
 //= type rollback_statement = { tag: "rollback_statement" };
 //= printers["rollback_statement"] = function(value) { throw 'print "rollback_statement": unimplemented'; };
 rollback_statement "rollback_statement"
-  = $("ROLLBACK"i (_? "WORK"i)?)
+  = $(ROLLBACK (_? WORK)?)
 
 //= type update_statement_searched = { tag: "update_statement_searched" };
 //= printers["update_statement_searched"] = function(value) { throw 'print "update_statement_searched": unimplemented'; };
 update_statement_searched "update_statement_searched"
-  = $("UPDATE"i _? table_name _? "SET"i _? set_clause_list (_? "WHERE"i _? search_condition)?)
+  = $(UPDATE _ table_name _ SET _ set_clause_list (_? WHERE _ search_condition)?)
 
 //= type set_clause_list = { tag: "set_clause_list" };
 //= printers["set_clause_list"] = function(value) { throw 'print "set_clause_list": unimplemented'; };
 set_clause_list "set_clause_list"
-  = $(set_clause (_? comma _? set_clause)*)
+  = $(set_clause (_? comma _ set_clause)*)
 
 //= type set_clause = { tag: "set_clause" };
 //= printers["set_clause"] = function(value) { throw 'print "set_clause": unimplemented'; };
 set_clause "set_clause"
-  = $(object_column _? equals_operator _? update_source)
+  = $(object_column _ equals_operator _ update_source)
 
 //= type object_column = { tag: "object_column" };
 //= printers["object_column"] = function(value) { throw 'print "object_column": unimplemented'; };
@@ -1555,17 +1556,17 @@ object_column "object_column"
 update_source "update_source"
   = value_expression
   / null_specification
-  / "DEFAULT"i
+  / DEFAULT
 
 //= type table_definition = { tag: "table_definition" };
 //= printers["table_definition"] = function(value) { throw 'print "table_definition": unimplemented'; };
 table_definition "table_definition"
-  = $("CREATE"i (_? ("GLOBAL"i / "LOCAL"i) _? "TEMPORARY"i)? _? "TABLE"i _? table_name _? table_element_list (_? "ON"i _? "COMMIT"i _? ("DELETE"i / "PRESERVE"i) _? "ROWS"i)?)
+  = $(CREATE (_? (GLOBAL / LOCAL) _ TEMPORARY)? _ TABLE _ table_name _ table_element_list (_? ON _ COMMIT _ (DELETE / PRESERVE) _ ROWS)?)
 
 //= type table_element_list = { tag: "table_element_list" };
 //= printers["table_element_list"] = function(value) { throw 'print "table_element_list": unimplemented'; };
 table_element_list "table_element_list"
-  = $(left_paren _? table_element (_? comma _? table_element)* _? right_paren)
+  = $(left_paren _ table_element (_? comma _ table_element)* _ right_paren)
 
 //= type table_element = { tag: "table_element" };
 //= printers["table_element"] = function(value) { throw 'print "table_element": unimplemented'; };
@@ -1581,13 +1582,13 @@ table_constraint_definition "table_constraint_definition"
 //= type constraint_check_time = { tag: "constraint_check_time" };
 //= printers["constraint_check_time"] = function(value) { throw 'print "constraint_check_time": unimplemented'; };
 constraint_check_time "constraint_check_time"
-  = $("INITIALLY"i _? "DEFERRED"i)
-  / $("INITIALLY"i _? "IMMEDIATE"i)
+  = $(INITIALLY _ DEFERRED)
+  / $(INITIALLY _ IMMEDIATE)
 
 //= type constraint_name_definition = { tag: "constraint_name_definition" };
 //= printers["constraint_name_definition"] = function(value) { throw 'print "constraint_name_definition": unimplemented'; };
 constraint_name_definition "constraint_name_definition"
-  = $("CONSTRAINT"i _? constraint_name)
+  = $(CONSTRAINT _ constraint_name)
 
 //= type constraint_name = { tag: "constraint_name" };
 //= printers["constraint_name"] = function(value) { throw 'print "constraint_name": unimplemented'; };
@@ -1604,13 +1605,13 @@ table_constraint "table_constraint"
 //= type unique_constraint_definition = { tag: "unique_constraint_definition" };
 //= printers["unique_constraint_definition"] = function(value) { throw 'print "unique_constraint_definition": unimplemented'; };
 unique_constraint_definition "unique_constraint_definition"
-  = $(unique_specification _? left_paren _? unique_column_list _? right_paren)
+  = $(unique_specification _ left_paren _ unique_column_list _ right_paren)
 
 //= type unique_specification = { tag: "unique_specification" };
 //= printers["unique_specification"] = function(value) { throw 'print "unique_specification": unimplemented'; };
 unique_specification "unique_specification"
-  = "UNIQUE"i
-  / $("PRIMARY"i _? "KEY"i)
+  = UNIQUE
+  / $(PRIMARY _ KEY)
 
 //= type unique_column_list = { tag: "unique_column_list" };
 //= printers["unique_column_list"] = function(value) { throw 'print "unique_column_list": unimplemented'; };
@@ -1620,7 +1621,7 @@ unique_column_list "unique_column_list"
 //= type referential_constraint_definition = { tag: "referential_constraint_definition" };
 //= printers["referential_constraint_definition"] = function(value) { throw 'print "referential_constraint_definition": unimplemented'; };
 referential_constraint_definition "referential_constraint_definition"
-  = $("FOREIGN"i _? "KEY"i _? left_paren _? referencing_columns _? right_paren _? references_specification)
+  = $(FOREIGN _ KEY _ left_paren _ referencing_columns _ right_paren _ references_specification)
 
 //= type referencing_columns = { tag: "referencing_columns" };
 //= printers["referencing_columns"] = function(value) { throw 'print "referencing_columns": unimplemented'; };
@@ -1635,13 +1636,13 @@ reference_column_list "reference_column_list"
 //= type references_specification = { tag: "references_specification" };
 //= printers["references_specification"] = function(value) { throw 'print "references_specification": unimplemented'; };
 references_specification "references_specification"
-  = $("REFERENCES"i _? referenced_table_and_columns (_? "MATCH"i _? match_type)? (_? referential_triggered_action)?)
+  = $(REFERENCES _ referenced_table_and_columns (_? MATCH _ match_type)? (_? referential_triggered_action)?)
 
 //= type match_type = { tag: "match_type" };
 //= printers["match_type"] = function(value) { throw 'print "match_type": unimplemented'; };
 match_type "match_type"
-  = "FULL"i
-  / "PARTIAL"i
+  = FULL
+  / PARTIAL
 
 //= type referential_triggered_action = { tag: "referential_triggered_action" };
 //= printers["referential_triggered_action"] = function(value) { throw 'print "referential_triggered_action": unimplemented'; };
@@ -1652,35 +1653,35 @@ referential_triggered_action "referential_triggered_action"
 //= type delete_rule = { tag: "delete_rule" };
 //= printers["delete_rule"] = function(value) { throw 'print "delete_rule": unimplemented'; };
 delete_rule "delete_rule"
-  = $("ON"i _? "DELETE"i _? referential_action)
+  = $(ON _ DELETE _ referential_action)
 
 //= type referential_action = { tag: "referential_action" };
 //= printers["referential_action"] = function(value) { throw 'print "referential_action": unimplemented'; };
 referential_action "referential_action"
-  = "CASCADE"i
-  / $("SET"i _? "NULL"i)
-  / $("SET"i _? "DEFAULT"i)
-  / $("NO"i _? "ACTION"i)
+  = CASCADE
+  / $(SET _ NULL)
+  / $(SET _ DEFAULT)
+  / $(NO _ ACTION)
 
 //= type update_rule = { tag: "update_rule" };
 //= printers["update_rule"] = function(value) { throw 'print "update_rule": unimplemented'; };
 update_rule "update_rule"
-  = $("ON"i _? "UPDATE"i _? referential_action)
+  = $(ON _ UPDATE _ referential_action)
 
 //= type referenced_table_and_columns = { tag: "referenced_table_and_columns" };
 //= printers["referenced_table_and_columns"] = function(value) { throw 'print "referenced_table_and_columns": unimplemented'; };
 referenced_table_and_columns "referenced_table_and_columns"
-  = $(table_name (_? left_paren _? reference_column_list _? right_paren)?)
+  = $(table_name (_? left_paren _ reference_column_list _ right_paren)?)
 
 //= type check_constraint_definition = { tag: "check_constraint_definition" };
 //= printers["check_constraint_definition"] = function(value) { throw 'print "check_constraint_definition": unimplemented'; };
 check_constraint_definition "check_constraint_definition"
-  = $("CHECK"i _? left_paren _? search_condition _? right_paren)
+  = $(CHECK _ left_paren _ search_condition _ right_paren)
 
 //= type column_definition = { tag: "column_definition" };
 //= printers["column_definition"] = function(value) { throw 'print "column_definition": unimplemented'; };
 column_definition "column_definition"
-  = $(column_name _? (data_type / domain_name) (_? default_clause)? (_? column_constraint_definition)* (_? collate_clause)?)
+  = $(column_name _ (data_type / domain_name) (_? default_clause)? (_? column_constraint_definition)* (_? collate_clause)?)
 
 //= type column_constraint_definition = { tag: "column_constraint_definition" };
 //= printers["column_constraint_definition"] = function(value) { throw 'print "column_constraint_definition": unimplemented'; };
@@ -1690,13 +1691,13 @@ column_constraint_definition "column_constraint_definition"
 //= type constraint_attributes = { tag: "constraint_attributes" };
 //= printers["constraint_attributes"] = function(value) { throw 'print "constraint_attributes": unimplemented'; };
 constraint_attributes "constraint_attributes"
-  = $(constraint_check_time (_? ("NOT"i _?)? "DEFERRABLE"i)?)
-  / $(("NOT"i _?)? "DEFERRABLE"i (_? constraint_check_time)?)
+  = $(constraint_check_time (_? (NOT _?)? DEFERRABLE)?)
+  / $((NOT _?)? DEFERRABLE (_? constraint_check_time)?)
 
 //= type column_constraint = { tag: "column_constraint" };
 //= printers["column_constraint"] = function(value) { throw 'print "column_constraint": unimplemented'; };
 column_constraint "column_constraint"
-  = $("NOT"i _? "NULL"i)
+  = $(NOT _ NULL)
   / unique_specification
   / references_specification
   / check_constraint_definition
@@ -1704,18 +1705,18 @@ column_constraint "column_constraint"
 //= type default_clause = { tag: "default_clause" };
 //= printers["default_clause"] = function(value) { throw 'print "default_clause": unimplemented'; };
 default_clause "default_clause"
-  = $("DEFAULT"i _? default_option)
+  = $(DEFAULT _ default_option)
 
 //= type default_option = { tag: "default_option" };
 //= printers["default_option"] = function(value) { throw 'print "default_option": unimplemented'; };
 default_option "default_option"
   = literal
   / datetime_value_function
-  / "USER"i
-  / "CURRENT_USER"i
-  / "SESSION_USER"i
-  / "SYSTEM_USER"i
-  / "NULL"i
+  / USER
+  / CURRENT_USER
+  / SESSION_USER
+  / SYSTEM_USER
+  / NULL
 
 //= type literal = { tag: "literal" };
 //= printers["literal"] = function(value) { throw 'print "literal": unimplemented'; };
@@ -1739,8 +1740,151 @@ identifier_part "identifier_part"
   = identifier_start
   / digit
 
+DELETE "DELETE" = "DELETE"i !identifier_start
+NULL = "NULL"i !identifier_start
+SYSTEM_USER = "SYSTEM_USER"i !identifier_start
+SESSION_USER = "SESSION_USER"i !identifier_start
+CURRENT_USER = "CURRENT_USER"i !identifier_start
+USER = "USER"i !identifier_start
+DEFAULT = "DEFAULT"i !identifier_start
+NOT = "NOT"i !identifier_start
+DEFERRABLE = "DEFERRABLE"i !identifier_start
+CHECK = "CHECK"i !identifier_start
+UPDATE = "UPDATE"i !identifier_start
+ON = "ON"i !identifier_start
+ACTION = "ACTION"i !identifier_start
+NO = "NO"i !identifier_start
+SET = "SET"i !identifier_start
+CASCADE = "CASCADE"i !identifier_start
+PARTIAL = "PARTIAL"i !identifier_start
+FULL = "FULL"i !identifier_start
+MATCH = "MATCH"i !identifier_start
+REFERENCES = "REFERENCES"i !identifier_start
+KEY = "KEY"i !identifier_start
+FOREIGN = "FOREIGN"i !identifier_start
+PRIMARY = "PRIMARY"i !identifier_start
+UNIQUE = "UNIQUE"i !identifier_start
+CONSTRAINT = "CONSTRAINT"i !identifier_start
+IMMEDIATE = "IMMEDIATE"i !identifier_start
+INITIALLY = "INITIALLY"i !identifier_start
+DEFERRED = "DEFERRED"i !identifier_start
+ROWS = "ROWS"i !identifier_start
+PRESERVE = "PRESERVE"i !identifier_start
+COMMIT = "COMMIT"i !identifier_start
+TABLE = "TABLE"i !identifier_start
+TEMPORARY = "TEMPORARY"i !identifier_start
+LOCAL = "LOCAL"i !identifier_start
+GLOBAL = "GLOBAL"i !identifier_start
+CREATE = "CREATE"i !identifier_start
+WHERE = "WHERE"i !identifier_start
+WORK = "WORK"i !identifier_start
+ROLLBACK = "ROLLBACK"i !identifier_start
+VALUES = "VALUES"i !identifier_start
+INTO = "INTO"i !identifier_start
+INSERT = "INSERT"i !identifier_start
+DATE = "DATE"i !identifier_start
+TIMESTAMP = "TIMESTAMP"i !identifier_start
+TIME = "TIME"i !identifier_start
+INTERVAL = "INTERVAL"i !identifier_start
+BY = "BY"i !identifier_start
+GROUP = "GROUP"i !identifier_start
+VARCHAR = "VARCHAR"i !identifier_start
+VARYING = "VARYING"i !identifier_start
+CHAR = "CHAR"i !identifier_start
+CHARACTER = "CHARACTER"i !identifier_start
+NCHAR = "NCHAR"i !identifier_start
+NATIONAL = "NATIONAL"i !identifier_start
+BIT = "BIT"i !identifier_start
+SMALLINT = "SMALLINT"i !identifier_start
+INT = "INT"i !identifier_start
+INTEGER = "INTEGER"i !identifier_start
+DEC = "DEC"i !identifier_start
+DECIMAL = "DECIMAL"i !identifier_start
+NUMERIC = "NUMERIC"i !identifier_start
+PRECISION = "PRECISION"i !identifier_start
+DOUBLE = "DOUBLE"i !identifier_start
+REAL = "REAL"i !identifier_start
+FLOAT = "FLOAT"i !identifier_start
+ZONE = "ZONE"i !identifier_start
+WITH = "WITH"i !identifier_start
+COLLATE = "COLLATE"i !identifier_start
+AS = "AS"i !identifier_start
+USING = "USING"i !identifier_start
+CORRESPONDING = "CORRESPONDING"i !identifier_start
+CURRENT_TIME = "CURRENT_TIME"i !identifier_start
+CURRENT_TIMESTAMP = "CURRENT_TIMESTAMP"i !identifier_start
+CURRENT_DATE = "CURRENT_DATE"i !identifier_start
+SECOND = "SECOND"i !identifier_start
+TO = "TO"i !identifier_start
+RIGHT = "RIGHT"i !identifier_start
+LEFT = "LEFT"i !identifier_start
+UNION = "UNION"i !identifier_start
+OUTER = "OUTER"i !identifier_start
+INNER = "INNER"i !identifier_start
+MINUTE = "MINUTE"i !identifier_start
+HOUR = "HOUR"i !identifier_start
+DAY = "DAY"i !identifier_start
+MONTH = "MONTH"i !identifier_start
+YEAR = "YEAR"i !identifier_start
+TIMEZONE_MINUTE = "TIMEZONE_MINUTE"i !identifier_start
+TIMEZONE_HOUR = "TIMEZONE_HOUR"i !identifier_start
+UNKNOWN = "UNKNOWN"i !identifier_start
+FALSE = "FALSE"i !identifier_start
+TRUE = "TRUE"i !identifier_start
+COUNT = "COUNT"i !identifier_start
+SUM = "SUM"i !identifier_start
+MIN = "MIN"i !identifier_start
+MAX = "MAX"i !identifier_start
+AVG = "AVG"i !identifier_start
+ALL = "ALL"i !identifier_start
+DISTINCT = "DISTINCT"i !identifier_start
+BOTH = "BOTH"i !identifier_start
+TRAILING = "TRAILING"i !identifier_start
+LEADING = "LEADING"i !identifier_start
+ANY = "ANY"i !identifier_start
+SOME = "SOME"i !identifier_start
+CAST = "CAST"i !identifier_start
+THEN = "THEN"i !identifier_start
+WHEN = "WHEN"i !identifier_start
+END = "END"i !identifier_start
+CASE = "CASE"i !identifier_start
+ELSE = "ELSE"i !identifier_start
+COALESCE = "COALESCE"i !identifier_start
+NULLIF = "NULLIF"i !identifier_start
+HAVING = "HAVING"i !identifier_start
+FROM = "FROM"i !identifier_start
+SELECT = "SELECT"i !identifier_start
+JOIN = "JOIN"i !identifier_start
+NATURAL = "NATURAL"i !identifier_start
+OVERLAPS = "OVERLAPS"i !identifier_start
+EXISTS = "EXISTS"i !identifier_start
+IS = "IS"i !identifier_start
+ESCAPE = "ESCAPE"i !identifier_start
+LIKE = "LIKE"i !identifier_start
+IN = "IN"i !identifier_start
+AND = "AND"i !identifier_start
+BETWEEN = "BETWEEN"i !identifier_start
+OR = "OR"i !identifier_start
+CROSS = "CROSS"i !identifier_start
+INTERSECT = "INTERSECT"i !identifier_start
+EXCEPT = "EXCEPT"i !identifier_start
+FOR = "FOR"i !identifier_start
+SUBSTRING = "SUBSTRING"i !identifier_start
+TRIM = "TRIM"i !identifier_start
+TRANSLATE = "TRANSLATE"i !identifier_start
+CONVERT = "CONVERT"i !identifier_start
+LOWER = "LOWER"i !identifier_start
+UPPER = "UPPER"i !identifier_start
+BIT_LENGTH = "BIT_LENGTH"i !identifier_start
+OCTET_LENGTH = "OCTET_LENGTH"i !identifier_start
+CHARACTER_LENGTH = "CHARACTER_LENGTH"i !identifier_start
+CHAR_LENGTH = "CHAR_LENGTH"i !identifier_start
+AT = "AT"i !identifier_start
+EXTRACT = "EXTRACT"i !identifier_start
+POSITION = "POSITION"i !identifier_start
+
 _
-  = separator
+  = separator?
 
 eof
   = !.
