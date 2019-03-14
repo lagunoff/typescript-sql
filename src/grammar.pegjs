@@ -13,25 +13,22 @@
 //= const printers: any = {};
 
 start
-  = (_ stmt _ ";" _ / _ stmt _ eof)*
+  = stmts:(_ stmt _ ";" _ / _ stmt _ eof)* { return stmts.map(x => x[1]); }
 
 stmt
   = delete_statement
   / insert_statement
   / rollback_statement
-  / search_condition
   / query_specification
   / update_statement_searched
   / table_definition
+  / "@EXPRESSION:" _ e:expression { return e; }
   / "@QUERY_EXPRESSION:" _ e:query_expression
   / "@VALUE_EXPRESSION:" _ e:value_expression { return e; }
   / "@GENERAL_LITERAL:" _ e:general_literal
   / "@IDENTIFIER:" _ e:identifier
   / "@TABLE_REFERENCE:" _ e:table_reference
   / "@TABLE_EXPRESSION:" _ e:table_expression
-  / "@SEARCH_CONDITION:" _ e:search_condition
-  / "@COMPARISON_PREDICATE:" _ e:comparison_predicate
-  / "@BOOLEAN_TEST:" _ e:boolean_test
   / "@WHERE_CLAUSE:" _ e:where_clause
   / "@FROM_CLAUSE:" _ e:from_clause  
   / "@VALUE_EXPRESSION_PRIMARY:" _ e:value_expression_primary { return e; }
@@ -41,7 +38,7 @@ stmt
 //= type delete_statement = { tag: 'delete_statement', table_name: table_name, search_condition: search_condition };
 //= printers["delete_statement"] = function(value) { return String(value); };
 delete_statement "delete_statement"
-  = DELETE _ FROM _ table_name:table_name where:(_ WHERE _ search_condition)?
+  = DELETE _ FROM _ table_name:table_name where:(_ WHERE _ expression)?
     { return { tag: 'delete_statement', table_name: table_name, search_condition: where ? where[3] : null }; }
 
 //= type table_name = qualified_name;
@@ -165,15 +162,12 @@ qualified_name "qualified_name"
 //= printers["value_expression_primary"] = function(value) { throw 'print "value_expression_primary": unimplemented'; };
 value_expression_primary "value_expression_primary"
   = unsigned_literal
-  / set_function_specification
+  / set_function
   / column_reference
   / scalar_subquery
   / case_expression
-  / left_paren _ expr:value_expression _ right_paren { return expr; }
+  / left_paren _ expr:expression _ right_paren { return expr; }
   / cast_specification
-  / numeric_value_function
-  / string_value_function
-  / datetime_factor
 
 
 //= type value_expression = { tag: "value_expression" };
@@ -183,6 +177,16 @@ value_expression "value_expression"
   / unary_expression
   / value_expression_primary
 
+expression
+  = set_function
+  / apply_expression
+
+//= type apply_expression = { tag: "apply_expression", func: expression, args: expression[] };
+//= printers["value_expression"] = function(value) { throw 'print "value_expression": unimplemented'; };
+apply_expression
+  = expr:value_expression args:(_ left_paren (expression (_ comma _ expression)* (_ comma)?)? _ right_paren _)?
+   { return args ? { tag: 'apply', func: expr, args: args[2] ? [args[2][0], ...args[2][1].map(x => x[3])] : [] } : expr; }
+
 
 //= type unary_expression = { tag: "unary_expression", op: "+"|"-"|"NOT", expr: value_expression };
 //= printers["unary_expression"] = function(value) { throw 'print "unary_expression": unimplemented'; };
@@ -190,44 +194,20 @@ unary_expression "unary_expression"
   = op:sign _ expr:value_expression { return { tag: 'unary_expression', op: op, expr: expr }; }
   / op:NOT expr:value_expression { return { tag: 'unary_expression', op: op, expr: expr }; }
 
-//= type string_value_function = { tag: "string_value_function" };
-//= printers["string_value_function"] = function(value) { throw 'print "string_value_function": unimplemented'; };
-string_value_function "string_value_function"
-  = character_value_function
-  / bit_value_function
-
-//= type character_value_function = { tag: "character_value_function" };
-//= printers["character_value_function"] = function(value) { throw 'print "character_value_function": unimplemented'; };
-character_value_function "character_value_function"
-  = character_substring_function
-  / fold
-  / form_of_use_conversion
-  / character_translation
-  / trim_function
-
-//= type character_substring_function = { tag: "character_substring_function" };
-//= printers["character_substring_function"] = function(value) { throw 'print "character_substring_function": unimplemented'; };
-character_substring_function "character_substring_function"
-  = $(SUBSTRING _ left_paren _ value_expression _ FROM _ start_position (_ FOR _ string_length)? _ right_paren)
-
-//= type start_position = { tag: "start_position" };
-//= printers["start_position"] = function(value) { throw 'print "start_position": unimplemented'; };
-start_position "start_position"
-  = value_expression
 
 // ------------------------------------------------------------------------------
 // ||
 // * /
 // + -
 // < <= > >=
-// = == != <> IS (IS NOT) IN LIKE MATCH 
+// = == != <> IS (IS NOT) IN LIKE MATCH OVERLAPS
 // AND
 // OR
 // ------------------------------------------------------------------------------
 
 //= type binary_expression = {
 //=   tag: "binary_expression",
-//=   op: "||"|"*"|"/"|"+"|"-"|"<"|"<="|">"|">="|"="|"<>"|"IS"|"IS_NOT"|"IN"|"LIKE"|"MATCH"|"AND"|"OR",
+//=   op: "||"|"*"|"/"|"+"|"-"|"<"|"<="|">"|">="|"="|"<>"|"IS"|"IS_NOT"|"IN"|"LIKE"|"MATCH"|"AND"|"OR"|"OVERLAPS",
 //=   left: value_expression,
 //=   right: value_expression,
 //= };
@@ -244,7 +224,7 @@ and_expression "and_expression"
     { return makeBinary(head, tail); }
 
 comparison_expression_1 "comparison_expression_1"
-  = head:comparison_expression_2 tail:(_ ("=" / "==" / "!=" / "<>" / IS / IS _ NOT / IN / LIKE / MATCH) _ comparison_expression_2)*
+  = head:comparison_expression_2 tail:(_ ("=" / "==" / "!=" / "<>" / IS / IS _ NOT / IN / LIKE / MATCH / OVERLAPS) _ comparison_expression_2)*
     { return makeBinary(head, tail); }
 
 comparison_expression_2 "comparison_expression_2"
@@ -263,149 +243,12 @@ concatenation_expression "concatenation_expression"
   = head:value_expression_primary tail:(_ (concatenation_operator) _ value_expression_primary)*
     { return makeBinary(head, tail); }
 
-//= type numeric_value_function = { tag: "numeric_value_function" };
-//= printers["numeric_value_function"] = function(value) { throw 'print "numeric_value_function": unimplemented'; };
-numeric_value_function "numeric_value_function"
-  = position_expression
-  / extract_expression
-  / length_expression
-
-position_expression "position_expression"
-  = POSITION _ left_paren _ expr1:value_expression _ IN _ expr2:value_expression _ right_paren
-    { return { tag: 'apply', func: 'POSITION', args: [expr1, expr2] } }
-
-//= type extract_expression = { tag: "extract_expression" };
-//= printers["extract_expression"] = function(value) { throw 'print "extract_expression": unimplemented'; };
-extract_expression "extract_expression"
-  = EXTRACT _ left_paren _ expr1:extract_field _ FROM _ expr2:extract_source _ right_paren
-    { return { tag: 'apply', func: 'EXTRACT', args: [expr1, expr2] } }
-
-//= type extract_source = { tag: "extract_source" };
-//= printers["extract_source"] = function(value) { throw 'print "extract_source": unimplemented'; };
-extract_source "extract_source"
-  = value_expression
-
-//= type datetime_factor = { tag: "datetime_factor" };
-//= printers["datetime_factor"] = function(value) { throw 'print "datetime_factor": unimplemented'; };
-datetime_factor "datetime_factor"
-  = $(datetime_value_function (_ time_zone)?)
-
-//= type time_zone = { tag: "time_zone" };
-//= printers["time_zone"] = function(value) { throw 'print "time_zone": unimplemented'; };
-time_zone "time_zone"
-  = $(AT _ time_zone_specifier)
-
-//= type time_zone_specifier = { tag: "time_zone_specifier" };
-//= printers["time_zone_specifier"] = function(value) { throw 'print "time_zone_specifier": unimplemented'; };
-time_zone_specifier "time_zone_specifier"
-  = LOCAL
-  / $(TIME _ ZONE _ value_expression)
-
-
-//= type interval_primary = { tag: "interval_primary" };
-//= printers["interval_primary"] = function(value) { throw 'print "interval_primary": unimplemented'; };
-interval_primary "interval_primary"
-  = $(value_expression_primary (_ interval_qualifier)?)
-
-//= type length_expression = { tag: "length_expression" };
-//= printers["length_expression"] = function(value) { throw 'print "length_expression": unimplemented'; };
-length_expression "length_expression"
-  = char_length_expression
-  / octet_length_expression
-  / bit_length_expression
-
-//= type char_length_expression = { tag: "char_length_expression" };
-//= printers["char_length_expression"] = function(value) { throw 'print "char_length_expression": unimplemented'; };
-char_length_expression "char_length_expression"
-  = $((CHAR_LENGTH / CHARACTER_LENGTH) _ left_paren _ value_expression _ right_paren)
-
-//= type octet_length_expression = { tag: "octet_length_expression" };
-//= printers["octet_length_expression"] = function(value) { throw 'print "octet_length_expression": unimplemented'; };
-octet_length_expression "octet_length_expression"
-  = $(OCTET_LENGTH _ left_paren _ value_expression _ right_paren)
-
-//= type bit_length_expression = { tag: "bit_length_expression" };
-//= printers["bit_length_expression"] = function(value) { throw 'print "bit_length_expression": unimplemented'; };
-bit_length_expression "bit_length_expression"
-  = $(BIT_LENGTH _ left_paren _ value_expression _ right_paren)
-
-//= type string_length = { tag: "string_length" };
-//= printers["string_length"] = function(value) { throw 'print "string_length": unimplemented'; };
-string_length "string_length"
-  = value_expression
-
-//= type fold = { tag: "fold" };
-//= printers["fold"] = function(value) { throw 'print "fold": unimplemented'; };
-fold "fold"
-  = $((UPPER / LOWER) _ left_paren _ value_expression _ right_paren)
-
-//= type form_of_use_conversion = { tag: "form_of_use_conversion" };
-//= printers["form_of_use_conversion"] = function(value) { throw 'print "form_of_use_conversion": unimplemented'; };
-form_of_use_conversion "form_of_use_conversion"
-  = $(CONVERT _ left_paren _ value_expression _ USING _ form_of_use_conversion_name _ right_paren)
-
-//= type character_translation = { tag: "character_translation" };
-//= printers["character_translation"] = function(value) { throw 'print "character_translation": unimplemented'; };
-character_translation "character_translation"
-  = $(TRANSLATE _ left_paren _ value_expression _ USING _ translation_name _ right_paren)
-
-//= type trim_function = { tag: "trim_function" };
-//= printers["trim_function"] = function(value) { throw 'print "trim_function": unimplemented'; };
-trim_function "trim_function"
-  = $(TRIM _ left_paren _ trim_operands _ right_paren)
-
-//= type trim_operands = { tag: "trim_operands" };
-//= printers["trim_operands"] = function(value) { throw 'print "trim_operands": unimplemented'; };
-trim_operands "trim_operands"
-  = $((trim_specification? (_ trim_character)? _ FROM _)? trim_source)
-
-//= type trim_character = { tag: "trim_character" };
-//= printers["trim_character"] = function(value) { throw 'print "trim_character": unimplemented'; };
-trim_character "trim_character"
-  = value_expression
-
-//= type trim_source = { tag: "trim_source" };
-//= printers["trim_source"] = function(value) { throw 'print "trim_source": unimplemented'; };
-trim_source "trim_source"
-  = value_expression
-
-//= type bit_value_function = { tag: "bit_value_function" };
-//= printers["bit_value_function"] = function(value) { throw 'print "bit_value_function": unimplemented'; };
-bit_value_function "bit_value_function"
-  = bit_substring_function
-
-//= type bit_substring_function = { tag: "bit_substring_function" };
-//= printers["bit_substring_function"] = function(value) { throw 'print "bit_substring_function": unimplemented'; };
-bit_substring_function "bit_substring_function"
-  = $(SUBSTRING _ left_paren _ bit_value_expression _ FROM _ start_position (_ FOR _ string_length)? _ right_paren)
-
-//= type bit_value_expression = { tag: "bit_value_expression" };
-//= printers["bit_value_expression"] = function(value) { throw 'print "bit_value_expression": unimplemented'; };
-bit_value_expression "bit_value_expression"
-  = $(bit_factor (_ concatenation_operator _ bit_factor)*)
-
-//= type bit_factor = { tag: "bit_factor" };
-//= printers["bit_factor"] = function(value) { throw 'print "bit_factor": unimplemented'; };
-bit_factor "bit_factor"
-  = bit_primary
-
-//= type bit_primary = { tag: "bit_primary" };
-//= printers["bit_primary"] = function(value) { throw 'print "bit_primary": unimplemented'; };
-bit_primary "bit_primary"
-  = value_expression_primary
-  / string_value_function
-
-//= type set_function_specification = { tag: "set_function_specification" };
-//= printers["set_function_specification"] = function(value) { throw 'print "set_function_specification": unimplemented'; };
-set_function_specification "set_function_specification"
+//= type set_function = { tag: "set_function" };
+//= printers["set_function"] = function(value) { throw 'print "set_function": unimplemented'; };
+set_function "set_function"
   = COUNT _ left_paren _ asterisk _ right_paren
     { return { tag: 'set_function', type: 'COUNT', quantifier: null, expr: null }; }
-  / general_set_function
-
-//= type general_set_function = { tag: 'set_function', type: type, quantifier: set_quantifier|null, expr: value_expression };
-//= printers["general_set_function"] = function(value) { throw 'print "general_set_function": unimplemented'; };
-general_set_function "general_set_function"
-  = type:set_function_type _ left_paren quantifier:(_ set_quantifier)? _ expr:value_expression _ right_paren
+  / type:set_function_type _ left_paren quantifier:(_ set_quantifier)? _ expr:value_expression _ right_paren
     { return { tag: 'set_function', type: type, quantifier: quantifier ? quantifier[1] : null, expr: expr }; }
 
 //= type scalar_subquery = { tag: "scalar_subquery" };
@@ -480,43 +323,15 @@ join_specification "join_specification"
   = join_condition
   / named_columns_join
 
-//= type join_condition = { tag: "join_condition" };
+//= type join_condition = expression;
 //= printers["join_condition"] = function(value) { throw 'print "join_condition": unimplemented'; };
 join_condition "join_condition"
-  = $(ON _ search_condition)
-
-//= type search_condition = { tag: "search_condition" };
-//= printers["search_condition"] = function(value) { throw 'print "search_condition": unimplemented'; };
-search_condition "search_condition"
-  = $(boolean_term (_ OR _ boolean_term)*)
-
-//= type boolean_term = { tag: "boolean_term" };
-//= printers["boolean_term"] = function(value) { throw 'print "boolean_term": unimplemented'; };
-boolean_term "boolean_term"
-  = $(boolean_factor (_ AND _ boolean_factor)*)
-
-//= type boolean_factor = { tag: "boolean_factor" };
-//= printers["boolean_factor"] = function(value) { throw 'print "boolean_factor": unimplemented'; };
-boolean_factor "boolean_factor"
-  = $((NOT _)? boolean_test)
-
-//= type boolean_test = { tag: "boolean_test" };
-//= printers["boolean_test"] = function(value) { throw 'print "boolean_test": unimplemented'; };
-boolean_test "boolean_test"
-  = $(boolean_primary (_ IS (_ NOT)? _ truth_value)?)
-
-//= type boolean_primary = { tag: "boolean_primary" };
-//= printers["boolean_primary"] = function(value) { throw 'print "boolean_primary": unimplemented'; };
-boolean_primary "boolean_primary"
-  = predicate
-  / $(left_paren _ search_condition _ right_paren)
+  = ON _ expr:expression { return expr; }
 
 //= type predicate = { tag: "predicate" };
 //= printers["predicate"] = function(value) { throw 'print "predicate": unimplemented'; };
 predicate "predicate"
   = between_predicate
-  / in_predicate
-  / comparison_predicate
   / like_predicate
   / null_predicate
   / quantified_comparison_predicate
@@ -524,17 +339,11 @@ predicate "predicate"
   / match_predicate
   / overlaps_predicate
 
-//= type between_predicate = { tag: "between_predicate" };
+//= type between_predicate = { tag: "between_expression", expr1: expression, expr2: expression, expr3: expression };
 //= printers["between_predicate"] = function(value) { throw 'print "between_predicate": unimplemented'; };
 between_predicate "between_predicate"
-  = $(row_value_constructor (_ NOT)? _ BETWEEN _ row_value_constructor _ AND _ row_value_constructor)
-
-//= type row_value_constructor = { tag: "row_value_constructor" };
-//= printers["row_value_constructor"] = function(value) { throw 'print "row_value_constructor": unimplemented'; };
-row_value_constructor "row_value_constructor"
-  = row_value_constructor_element
-  / $(left_paren _ row_value_constructor_list _ right_paren)
-  / row_subquery
+  = expr1:expression (_ NOT)? _ BETWEEN _ expr2:expression _ AND _ expr3:expression
+    { return { tag: "between_expression", expr1: expr1, expr2: expr2, expr3: expr3 }; }
 
 //= type row_value_constructor_element = { tag: "row_value_constructor_element" };
 //= printers["row_value_constructor_element"] = function(value) { throw 'print "row_value_constructor_element": unimplemented'; };
@@ -543,36 +352,6 @@ row_value_constructor_element "row_value_constructor_element"
   / null_specification
   / default_specification
 
-//= type row_value_constructor_list = { tag: "row_value_constructor_list" };
-//= printers["row_value_constructor_list"] = function(value) { throw 'print "row_value_constructor_list": unimplemented'; };
-row_value_constructor_list "row_value_constructor_list"
-  = $(row_value_constructor_element (_ comma _ row_value_constructor_element)*)
-
-//= type row_subquery = { tag: "row_subquery" };
-//= printers["row_subquery"] = function(value) { throw 'print "row_subquery": unimplemented'; };
-row_subquery "row_subquery"
-  = subquery
-
-//= type in_predicate = { tag: "in_predicate" };
-//= printers["in_predicate"] = function(value) { throw 'print "in_predicate": unimplemented'; };
-in_predicate "in_predicate"
-  = $(row_value_constructor (_ NOT)? _ IN _ in_predicate_value)
-
-//= type in_predicate_value = { tag: "in_predicate_value" };
-//= printers["in_predicate_value"] = function(value) { throw 'print "in_predicate_value": unimplemented'; };
-in_predicate_value "in_predicate_value"
-  = table_subquery
-  / $(left_paren _ in_value_list _ right_paren)
-
-//= type in_value_list = { tag: "in_value_list" };
-//= printers["in_value_list"] = function(value) { throw 'print "in_value_list": unimplemented'; };
-in_value_list "in_value_list"
-  = $(value_expression (_ comma _ value_expression)+)
-
-//= type comparison_predicate = { tag: "comparison_predicate" };
-//= printers["comparison_predicate"] = function(value) { throw 'print "comparison_predicate": unimplemented'; };
-comparison_predicate "comparison_predicate"
-  = $(row_value_constructor _ comp_op _ row_value_constructor)
 
 //= type like_predicate = { tag: "like_predicate" };
 //= printers["like_predicate"] = function(value) { throw 'print "like_predicate": unimplemented'; };
@@ -597,37 +376,27 @@ escape_character "escape_character"
 //= type null_predicate = { tag: "null_predicate" };
 //= printers["null_predicate"] = function(value) { throw 'print "null_predicate": unimplemented'; };
 null_predicate "null_predicate"
-  = $(row_value_constructor _ IS (_ NOT)? _ NULL)
+  = expression _ IS (_ NOT)? _ NULL
 
 //= type quantified_comparison_predicate = { tag: "quantified_comparison_predicate" };
 //= printers["quantified_comparison_predicate"] = function(value) { throw 'print "quantified_comparison_predicate": unimplemented'; };
 quantified_comparison_predicate "quantified_comparison_predicate"
-  = $(row_value_constructor _ comp_op _ quantifier _ table_subquery)
+  = $(expression _ comp_op _ quantifier _ table_subquery)
 
 //= type exists_predicate = { tag: "exists_predicate" };
 //= printers["exists_predicate"] = function(value) { throw 'print "exists_predicate": unimplemented'; };
 exists_predicate "exists_predicate"
-  = $(EXISTS _ table_subquery)
+  = EXISTS _ expr:expression { return expr; }
 
 //= type match_predicate = { tag: "match_predicate" };
 //= printers["match_predicate"] = function(value) { throw 'print "match_predicate": unimplemented'; };
 match_predicate "match_predicate"
-  = $(row_value_constructor _ MATCH (_ UNIQUE)? (_ (PARTIAL / FULL))? _ table_subquery)
+  = $(expression _ MATCH (_ UNIQUE)? (_ (PARTIAL / FULL))? _ expression)
 
 //= type overlaps_predicate = { tag: "overlaps_predicate" };
 //= printers["overlaps_predicate"] = function(value) { throw 'print "overlaps_predicate": unimplemented'; };
 overlaps_predicate "overlaps_predicate"
-  = $(row_value_constructor_1 _ OVERLAPS _ row_value_constructor_2)
-
-//= type row_value_constructor_1 = { tag: "row_value_constructor_1" };
-//= printers["row_value_constructor_1"] = function(value) { throw 'print "row_value_constructor_1": unimplemented'; };
-row_value_constructor_1 "row_value_constructor_1"
-  = row_value_constructor
-
-//= type row_value_constructor_2 = { tag: "row_value_constructor_2" };
-//= printers["row_value_constructor_2"] = function(value) { throw 'print "row_value_constructor_2": unimplemented'; };
-row_value_constructor_2 "row_value_constructor_2"
-  = row_value_constructor
+  = expression _ OVERLAPS _ expression
 
 //= type qualified_join = { tag: "qualified_join" };
 //= printers["qualified_join"] = function(value) { throw 'print "qualified_join": unimplemented'; };
@@ -647,10 +416,11 @@ simple_table "simple_table"
   / table_value_constructor
   / explicit_table
 
-//= type query_specification = { tag: "query_specification" };
+//= type select_expression = { tag: "select_expression", select_list: select_list, table: table_expression };
 //= printers["query_specification"] = function(value) { throw 'print "query_specification": unimplemented'; };
 query_specification "query_specification"
-  = $(SELECT (_ set_quantifier)? _ select_list _ table_expression)
+  = SELECT (_ set_quantifier)? _ select_list:select_list _ table:table_expression
+    { return { tag: 'select_expression', select_list: select_list, table: table }; }
 
 //= type select_list = { tag: "select_list" };
 //= printers["select_list"] = function(value) { throw 'print "select_list": unimplemented'; };
@@ -662,42 +432,46 @@ select_list "select_list"
 //= printers["select_sublist"] = function(value) { throw 'print "select_sublist": unimplemented'; };
 select_sublist "select_sublist"
   = derived_column
-  / $(qualifier _ period _ asterisk)
+  / qualifier period asterisk
 
 //= type derived_column = { tag: "derived_column" };
 //= printers["derived_column"] = function(value) { throw 'print "derived_column": unimplemented'; };
 derived_column "derived_column"
   = $(value_expression (_ as_clause)?)
 
-//= type table_expression = { tag: "table_expression" };
+//= type table_expression = { tag: "table_expression", from: from_clause, where: where_clause|null, group_by: group_by_clause|null, having: having_clause|null };
 //= printers["table_expression"] = function(value) { throw 'print "table_expression": unimplemented'; };
 table_expression "table_expression"
-  = $(from_clause (_ where_clause)? (_ group_by_clause)? (_ having_clause)?)
+  = from:from_clause where:(_ where_clause)? group_by:(_ group_by_clause)? having:(_ having_clause)?
+    { return { tag: "table_expression", from: from, where: where ? where[1] : null, group_by: group_by ? group_by[1] : null, having: having ? having[1] : null }; }
 
 //= type from_clause = { tag: "from_clause" };
 //= printers["from_clause"] = function(value) { throw 'print "from_clause": unimplemented'; };
 from_clause "from_clause"
   = $(FROM _ table_reference (_ comma _ table_reference)*)
 
-//= type where_clause = { tag: "where_clause" };
+//= type where_clause = expression;
 //= printers["where_clause"] = function(value) { throw 'print "where_clause": unimplemented'; };
 where_clause "where_clause"
-  = $(WHERE _ search_condition)
+  = WHERE _ expr:expression { return expr; }
 
 //= type having_clause = { tag: "having_clause" };
 //= printers["having_clause"] = function(value) { throw 'print "having_clause": unimplemented'; };
 having_clause "having_clause"
-  = $(HAVING _ search_condition)
+  = HAVING _ expr:expression { return expr; } 
 
-//= type table_value_constructor = { tag: "table_value_constructor" };
+//= type table_value_constructor = expression[];
 //= printers["table_value_constructor"] = function(value) { throw 'print "table_value_constructor": unimplemented'; };
 table_value_constructor "table_value_constructor"
-  = $(VALUES _ table_value_constructor_list)
+  = VALUES _ xs:table_value_constructor_list { return xs; }
 
 //= type table_value_constructor_list = { tag: "table_value_constructor_list" };
 //= printers["table_value_constructor_list"] = function(value) { throw 'print "table_value_constructor_list": unimplemented'; };
 table_value_constructor_list "table_value_constructor_list"
-  = $(row_value_constructor (_ comma _ row_value_constructor)*)
+  = head:comma_separated_expressions tail:(_ comma _ comma_separated_expressions)* { return tail.reduce((acc, tuple) => (acc.push(tuple[3], acc)), [head]); }
+
+comma_separated_expressions
+  = left_paren _ head:expression tail:(_ comma _ expression)* (_ comma)? _ right_paren { return tail.reduce((acc, tuple) => (acc.push(tuple[3], acc)), [head]); }
 
 //= type query_primary = { tag: "query_primary" };
 //= printers["query_primary"] = function(value) { throw 'print "query_primary": unimplemented'; };
@@ -736,28 +510,17 @@ case_operand "case_operand"
 //= type simple_when_clause = { tag: "simple_when_clause" };
 //= printers["simple_when_clause"] = function(value) { throw 'print "simple_when_clause": unimplemented'; };
 simple_when_clause "simple_when_clause"
-  = $(WHEN _ when_operand _ THEN _ result)
+  = $(WHEN _ when_operand _ THEN _ expression)
 
 //= type when_operand = { tag: "when_operand" };
 //= printers["when_operand"] = function(value) { throw 'print "when_operand": unimplemented'; };
 when_operand "when_operand"
-  = value_expression
-
-//= type result = { tag: "result" };
-//= printers["result"] = function(value) { throw 'print "result": unimplemented'; };
-result "result"
-  = result_expression
-  / NULL
-
-//= type result_expression = { tag: "result_expression" };
-//= printers["result_expression"] = function(value) { throw 'print "result_expression": unimplemented'; };
-result_expression "result_expression"
-  = value_expression
+  = expression
 
 //= type else_clause = { tag: "else_clause" };
 //= printers["else_clause"] = function(value) { throw 'print "else_clause": unimplemented'; };
 else_clause "else_clause"
-  = $(ELSE _ result)
+  = ELSE _ expr:expression { return expr; }
 
 //= type searched_case = { tag: "searched_case" };
 //= printers["searched_case"] = function(value) { throw 'print "searched_case": unimplemented'; };
@@ -767,7 +530,7 @@ searched_case "searched_case"
 //= type searched_when_clause = { tag: "searched_when_clause" };
 //= printers["searched_when_clause"] = function(value) { throw 'print "searched_when_clause": unimplemented'; };
 searched_when_clause "searched_when_clause"
-  = $(WHEN _ search_condition _ THEN _ result)
+  = $(WHEN _ expression _ THEN _ expression)
 
 //= type cast_specification = { tag: "cast_specification" };
 //= printers["cast_specification"] = function(value) { throw 'print "cast_specification": unimplemented'; };
@@ -1023,12 +786,12 @@ current_time_value_function "current_time_value_function"
 time_precision "time_precision"
   = unsigned_integer
 
-//= type as_clause = { tag: "as_clause" };
+//= type as_clause = column_name;
 //= printers["as_clause"] = function(value) { throw 'print "as_clause": unimplemented'; };
 as_clause "as_clause"
-  = $((AS _)? column_name)
+  = (AS _)? ident:column_name { return ident; }
 
-//= type column_name = { tag: "column_name" };
+//= type column_name = identifier;
 //= printers["column_name"] = function(value) { throw 'print "column_name": unimplemented'; };
 column_name "column_name"
   = identifier
@@ -1262,11 +1025,6 @@ mantissa "mantissa"
 //= printers["general_literal"] = function(value) { throw 'print "general_literal": unimplemented'; };
 general_literal "general_literal"
   = character_string_literal
-  / national_character_string_literal
-  / bit_string_literal
-  / hex_string_literal
-  / datetime_literal
-  / interval_literal
 
 //= type bit_string_literal = { tag: "bit_string_literal" };
 //= printers["bit_string_literal"] = function(value) { throw 'print "bit_string_literal": unimplemented'; };
@@ -1336,29 +1094,6 @@ hexit "hexit"
   / "d"
   / "e"
   / "f"
-
-//= type interval_literal = { tag: "interval_literal" };
-//= printers["interval_literal"] = function(value) { throw 'print "interval_literal": unimplemented'; };
-interval_literal "interval_literal"
-  = $(INTERVAL (_ sign)? _ interval_string _ interval_qualifier)
-
-//= type interval_string = { tag: "interval_string" };
-//= printers["interval_string"] = function(value) { throw 'print "interval_string": unimplemented'; };
-interval_string "interval_string"
-  = $(quote (year_month_literal / day_time_literal) quote)
-
-//= type day_time_literal = { tag: "day_time_literal" };
-//= printers["day_time_literal"] = function(value) { throw 'print "day_time_literal": unimplemented'; };
-day_time_literal "day_time_literal"
-  = day_time_interval
-  / time_interval
-
-//= type time_interval = { tag: "time_interval" };
-//= printers["time_interval"] = function(value) { throw 'print "time_interval": unimplemented'; };
-time_interval "time_interval"
-  = $(hours_value (colon minutes_value (colon seconds_value)?)?)
-  / $(minutes_value (colon seconds_value)?)
-  / seconds_value
 
 //= type colon = { tag: "colon" };
 //= printers["colon"] = function(value) { throw 'print "colon": unimplemented'; };
@@ -1502,7 +1237,7 @@ rollback_statement "rollback_statement"
 //= type update_statement_searched = { tag: "update_statement_searched" };
 //= printers["update_statement_searched"] = function(value) { throw 'print "update_statement_searched": unimplemented'; };
 update_statement_searched "update_statement_searched"
-  = $(UPDATE _ table_name _ SET _ set_clause_list (_ WHERE _ search_condition)?)
+  = $(UPDATE _ table_name _ SET _ set_clause_list (_ WHERE _ expression)?)
 
 //= type set_clause_list = { tag: "set_clause_list" };
 //= printers["set_clause_list"] = function(value) { throw 'print "set_clause_list": unimplemented'; };
@@ -1644,7 +1379,7 @@ referenced_table_and_columns "referenced_table_and_columns"
 //= type check_constraint_definition = { tag: "check_constraint_definition" };
 //= printers["check_constraint_definition"] = function(value) { throw 'print "check_constraint_definition": unimplemented'; };
 check_constraint_definition "check_constraint_definition"
-  = $(CHECK _ left_paren _ search_condition _ right_paren)
+  = $(CHECK _ left_paren _ expression _ right_paren)
 
 //= type column_definition = { tag: "column_definition" };
 //= printers["column_definition"] = function(value) { throw 'print "column_definition": unimplemented'; };
