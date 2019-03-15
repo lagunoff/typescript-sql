@@ -6,3 +6,4 @@ sed -n 's/^\/\/=\s\?\(.*\)$/\1/p' < src/grammar.pegjs | sed 's/^type /export typ
 echo "module.exports = require('./fast');" > lib/index.js 
 cp scripts/*.d.ts lib/
 cp package.json lib/package.json
+cp README.md lib/README.md
