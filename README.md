@@ -1,6 +1,6 @@
 ## Work in progress, do not rely on this code
 
-SQL-like language with JSON types for frontend application
+SQL-like language with JSON types for frontend applications
 
 ## Installation
 ```
