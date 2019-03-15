@@ -25,11 +25,19 @@ stmt
 // ------------------------------------------------------------------------------
 expression
   = select_expression
+  / delete_expression
+  / insert_expression
+  / update_expression
   / binary_expression
 
 expression_primary
-  = literal
+  = unary_expression
+  / literal
+  / signed_integer
+  / values_expression
   / ident:identifier { return { tag: 'ident', name: ident }; }
+  / left_paren _ expr:expression tail:(_ comma _ expression)* _ right_paren
+    { return !tail.length ? expr : { tag: 'tuple', left: expr, right: tail.length < 2 ? tail[0][3] : tail.reduce((acc, tuple) => ({ tag: 'tuple', left: tuple[3], right: acc }))}; }
 
 // ------------------------------------------------------------------------------
 // ||
@@ -60,7 +68,7 @@ and_expression "and_expression"
     { return makeBinary(head, tail); }
 
 comparison_expression_1 "comparison_expression_1"
-  = head:comparison_expression_2 tail:(_ ("=" / "==" / "!=" / "<>" / IS / IS _ NOT / IN / LIKE / MATCH / OVERLAPS) _ comparison_expression_2)*
+  = head:comparison_expression_2 tail:(_ ("==" / "=" / "!=" / "<>" / IS / IS _ NOT / IN / LIKE / MATCH / OVERLAPS) _ comparison_expression_2)*
     { return makeBinary(head, tail); }
 
 comparison_expression_2 "comparison_expression_2"
@@ -79,43 +87,14 @@ concatenation_expression "concatenation_expression"
   = head:expression_primary tail:(_ (concatenation_operator) _ expression_primary)*
     { return makeBinary(head, tail); }
 
+values_expression "values_expression"
+  = VALUES _ expr:comma_separated_expressions { return expr; }
 
-// ------------------------------------------------------------------------------
-// Symbols
-// ------------------------------------------------------------------------------
-left_paren "left_paren" = "("
-right_paren "right_paren" = ")"
-quote "quote" = "'"
-double_quote "double_quote" = "\""
-underscore = "_"
-minus_sign = "-"
-plus_sign = "+"
-sign = minus_sign / plus_sign
-period = "."
-asterisk = "*"
-solidus = "/"
-comma = ","
-concatenation_operator = "||"
-newline = [\n]
-_ = separator?
-eof = !.
-space = [ ]
+//= type unary_expression = { tag: "unary", op: "+"|"-"|"NOT", expr: value_expression };
+unary_expression "unary_expression"
+  = op:sign _ expr:expression { return { tag: 'unary', op: op, expr: expr }; }
+  / op:NOT _ expr:expression { return { tag: 'unary', op: op, expr: expr }; }
 
-digit
-  = [0-9]
-
-separator "separator"
-  = (comment / space / newline)+ { return void 0; }
-
-identifier_start
-  = [a-zA-Z_]
-
-nondoublequote_character
-  = !double_quote .
-
-
-comment_character
-  = !newline .
 
 // ------------------------------------------------------------------------------
 // Identifiers
@@ -125,7 +104,7 @@ identifier "identifier"
   / double_quote body:delimited_identifier_body double_quote { return unesc2(body); }
   
 regular_identifier "regular_identifier"
-  = !keyword identifier_body
+  = !keyword body:identifier_body { return body; }
 
 identifier_body "identifier_body"
   = $(identifier_start (underscore / identifier_part)*)
@@ -157,9 +136,10 @@ comment_introducer "comment_introducer"
 // ------------------------------------------------------------------------------
 // Select expression
 // ------------------------------------------------------------------------------
+//= type select_expression = { tag: "select_expression", columns: select_list } & table_expression;
 select_expression "select_expression"
-  = SELECT (_ set_quantifier)? _ select_list:select_list _ table:table_expression
-    { return { tag: 'select_expression', select_list: select_list, table: table }; }
+  = SELECT (_ set_quantifier)? _ columns:select_list _ table:table_expression
+    { return { tag: 'select_expression', columns: columns, ...table }; }
 
 select_list "select_list"
   = asterisk { return null; }
@@ -267,17 +247,23 @@ column_reference "column_reference"
 catalog_name = identifier
 schema_name = identifier
 
-//= type table_reference = join;
+//= type table_reference = table_reference_primary|join;
 table_reference "table_reference"
   = join
 
-//= type join = join;
+//= type join = { tag: 'join', type: join_kw, left: table_reference, right: table_reference, spec: join_specification|null };
 join "join"
-  = left:table_reference_primary right:(_ (CROSS _ JOIN / NATURAL? (_ join_type)? _ JOIN) _ table_reference_primary (_ join_specification)?)*
-    { return { tag: "join", left: left, right: right }; }
+  = left:table_reference_primary right:(_ join_kw _ table_reference_primary (_ join_specification)?)*
+    { return right.length ? right.reduce((acc, tuple) => ({ tag: "join", type: tuple[1], left: acc, right: tuple[3], spec: tuple[4] ? tuple[4][1] : null }), left) : left; }
+    
+//= type join_kw = join_type|'CROSS';
+join_kw
+  = CROSS _ JOIN { return 'CROSS'; }
+  / NATURAL? ty:(_ join_type)? _ JOIN { return ty ? ty[1] : 'LEFT'; }
 
+//= type table_reference_primary = ;
 table_reference_primary
-  = left_paren _ table:join _ right_paren { return table; }
+  = left_paren _ table:table_reference _ right_paren { return table; }
   / $(table_name (_ correlation_specification)?)
   / $(derived_table _ correlation_specification)
 
@@ -318,6 +304,56 @@ outer_join_type "outer_join_type"
   = LEFT
   / RIGHT
   / FULL
+
+// ------------------------------------------------------------------------------
+// Delete expression
+// ------------------------------------------------------------------------------
+
+//= type delete_expression = { tag: 'delete_expression', table: table_name, where: expression };
+delete_expression "delete_expression"
+  = DELETE _ FROM _ table:table_name where:(_ WHERE _ expression)?
+    { return { tag: 'delete_expression', table: table, where: where ? where[3] : null }; }
+
+// ------------------------------------------------------------------------------
+// Insert expression
+// ------------------------------------------------------------------------------
+
+//= type insert_statement = { tag: "insert", table: table_name } & insert_columns_and_source;
+insert_expression "insert_expression"
+  = INSERT _ INTO _ table:table_name _ columns:insert_columns_and_source
+    { return { tag: "insert", table: table, ...columns }; }
+
+//= type insert_columns_and_source = { columns: insert_column_list|null, expr: expression };
+insert_columns_and_source "insert_columns_and_source"
+  = columns:(left_paren _ insert_column_list _ right_paren _)? expr:expression { return { columns: columns ? columns[2] : null, expr: expr }; }
+
+//= type insert_column_list = { tag: "insert_column_list" };
+insert_column_list "insert_column_list"
+  = column_name_list
+
+// ------------------------------------------------------------------------------
+// Update expression
+// ------------------------------------------------------------------------------
+
+//= type update_expression = { tag: "update", table: table_name, set: set_clause_list, where: expression|null };
+update_expression "update_expression"
+  = UPDATE _ table:table_name _ SET _ set:set_clause_list where:(_ WHERE _ expression)?
+    { return { tag: "update", table: table, set: set, where: where ? where[3] : null }; }
+
+//= type set_clause_list = set_clause[];
+set_clause_list "set_clause_list"
+  = head:set_clause tail:(_ comma _ set_clause)*
+    { return tail.reduce((acc, tuple) => (acc.push(tuple[3]), acc), [head]); }
+
+//= type set_clause = { column: column_name, value: update_source };
+set_clause "set_clause"
+  = column:column_name _ equals_operator _ value:update_source
+    { return { column: column, value: value }; }
+
+//= type update_source = { tag: "expression", value: expression } | { tag: 'default' };
+update_source "update_source"
+  = DEFAULT { return { tag: 'default' }; }
+  / value:expression { return { tag: 'expression', value: value }; }
 
 // ------------------------------------------------------------------------------
 // Literals
@@ -363,11 +399,40 @@ unsigned_integer "unsigned_integer"
 signed_integer "unsigned_integer"
   = text:$(sign? digit+) { return parseInt(text); }
 
+
+// ------------------------------------------------------------------------------
+// Symbols
+// ------------------------------------------------------------------------------
+left_paren "left_paren" = "("
+right_paren "right_paren" = ")"
+quote "quote" = "'"
+double_quote "double_quote" = "\""
+underscore = "_"
+minus_sign = "-"
+plus_sign = "+"
+sign = minus_sign / plus_sign
+period = "."
+asterisk = "*"
+solidus = "/"
+comma = ","
+concatenation_operator = "||"
+newline = [\n]
+_ = separator?
+eof = !.
+space = [ ]
+equals_operator = "="
+digit = [0-9]
+separator "separator" = (comment / space / newline)+ { return void 0; }
+identifier_start = [a-zA-Z_]
+nondoublequote_character = !double_quote .
+comment_character = !newline .
+
+
 // ------------------------------------------------------------------------------
 // Keywords
 // ------------------------------------------------------------------------------
 keyword
-  = DELETE / SELECT / OR / AND / IN / NOT / IS / LIKE / MATCH / OVERLAPS / FROM / JOIN / CROSS / WHERE / ORDER / LIMIT / OFFSET / GROUP / DISTINCT / ALL / AS / HAVING / VALUES / BY / COLLATE / NATURAL / ON /USING/INNER/UNION/OUTER/LEFT/RIGHT/FULL
+  = DELETE / SELECT / OR / AND / IN / NOT / IS / LIKE / MATCH / OVERLAPS / FROM / JOIN / CROSS / WHERE / ORDER / LIMIT / OFFSET / GROUP / DISTINCT / ALL / AS / HAVING / VALUES / BY / COLLATE / NATURAL / ON /USING/INNER/UNION/OUTER/LEFT/RIGHT/FULL/INSERT/INTO/DEFAULT/UPDATE/SET
   
 DELETE "DELETE" = "DELETE"i !identifier_start { return "DELETE"; }
 SELECT "SELECT" = "SELECT"i !identifier_start { return "SELECT"; }
@@ -403,3 +468,8 @@ OUTER "OUTER" = "OUTER"i !identifier_start { return "OUTER"; }
 LEFT "LEFT" = "LEFT"i !identifier_start { return "LEFT"; }
 RIGHT "RIGHT" = "RIGHT"i !identifier_start { return "RIGHT"; }
 FULL "FULL" = "FULL"i !identifier_start { return "FULL"; }
+INSERT "INSERT" = "INSERT"i !identifier_start { return "INSERT"; }
+INTO "INTO" = "INTO"i !identifier_start { return "INTO"; }
+DEFAULT "DEFAULT" = "DEFAULT"i !identifier_start { return "DEFAULT"; }
+UPDATE "UPDATE" = "UPDATE"i !identifier_start { return "UPDATE"; }
+SET "SET" = "SET"i !identifier_start { return "SET"; }
