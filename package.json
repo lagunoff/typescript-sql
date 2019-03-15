@@ -1,6 +1,6 @@
 {
   "name": "typescript-sql",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "SQL parser for typescript",
   "main": "index.js",
   "repository": "git@github.com:lagunoff/typescript-sql.git",
@@ -10,5 +10,7 @@
     "test": "node tests/index.js",
     "build": "./scripts/build.sh"
   },
-  "devDependencies": { "pegjs": "^0.10.0" }
+  "devDependencies": {
+    "pegjs": "^0.10.0"
+  }
 }
