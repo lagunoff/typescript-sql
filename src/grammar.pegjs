@@ -206,16 +206,8 @@ where_clause "where_clause"
 having_clause "having_clause"
   = HAVING _ expr:expression { return expr; } 
 
-//= type table_value_constructor = expression[];
-table_value_constructor "table_value_constructor"
-  = VALUES _ xs:table_value_constructor_list { return xs; }
-
-//= type table_value_constructor_list = { tag: "table_value_constructor_list" };
-table_value_constructor_list "table_value_constructor_list"
-  = head:comma_separated_expressions tail:(_ comma _ comma_separated_expressions)* { return tail.reduce((acc, tuple) => (acc.push(tuple[3], acc)), [head]); }
-
 comma_separated_expressions
-  = left_paren _ head:expression tail:(_ comma _ expression)* (_ comma)? _ right_paren { return tail.reduce((acc, tuple) => (acc.push(tuple[3], acc)), [head]); }
+  = head:expression tail:(_ comma _ expression)*  { return tail.reduce((acc, tuple) => (acc.push(tuple[3], acc)), [head]); }
 
 //= type set_quantifier = 'DISTINCT'|'ALL';
 set_quantifier "set_quantifier"
@@ -517,14 +509,6 @@ MIN "MIN" = "MIN"i !identifier_start { return "MIN"; }
 SUM "SUM" = "SUM"i !identifier_start { return "SUM"; }
 COUNT "COUNT" = "COUNT"i !identifier_start { return "COUNT"; }
 
-//= declare module "typescript-sql/fast" {
-//=   export function print(input: string): expression[];
-//= }
-//= 
-//= declare module "typescript-sql/compact" {
-//=   export function print(input: string): expression[];
-//= }
-//= 
-//= declare module "typescript-sql" {
-//=   export * from "typescript-sql/fast";
-//= }
+//= export function parse(input: string): expression[];
+//= export interface SyntaxError extends Error {}
+
