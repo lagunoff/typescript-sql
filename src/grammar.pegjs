@@ -32,9 +32,10 @@ expression
   / update_expression
   / binary_expression
 
-//= type expression_primary = unary_expression|{ tag: 'literal', value: literal }|values_expression|{ tag: 'ident', name: identifier }|{ tag: 'tuple', left: expression, right: expression };
+//= type expression_primary = unary_expression|set_function|{ tag: 'literal', value: literal }|values_expression|{ tag: 'ident', name: identifier }|{ tag: 'tuple', left: expression, right: expression };
 expression_primary
   = unary_expression
+  / set_function
   / value:literal { return { tag: 'literal', value: value }; }
   / value:signed_integer { return { tag: 'literal', value: value }; }
   / values_expression
@@ -100,6 +101,25 @@ unary_expression "unary_expression"
 
 
 // ------------------------------------------------------------------------------
+// Set functions
+// ------------------------------------------------------------------------------
+
+//= type set_function =
+//=   | { tag: "count_asterisk" }
+//=   | { tag: "general_set_function", type: set_function_type, quantifier: set_quantifier, expr: expression }
+//= ;
+set_function "set_function"
+  = COUNT _ left_paren _ asterisk _ right_paren
+    { return { tag: "count_asterisk" }; }
+  / type:set_function_type _ left_paren quantifier:(_ set_quantifier)? _ expr:expression _ right_paren
+    { return { tag: "general_set_function", type: type, quantifier: quantifier ? quantifier[1] : null, expr: expr }; }
+
+//= type set_function_type = { tag: "set_function_type" };
+set_function_type "set_function_type"
+  = AVG / MAX / MIN / SUM / COUNT
+
+
+// ------------------------------------------------------------------------------
 // Identifiers
 // ------------------------------------------------------------------------------
 
@@ -119,7 +139,7 @@ identifier_part "identifier_part"
   / digit
   
 delimited_identifier_body "delimited_identifier_body"
-  = delimited_identifier_part+
+  = $(delimited_identifier_part+)
 
 delimited_identifier_part "delimited_identifier_part"
   = nondoublequote_character
@@ -141,10 +161,10 @@ comment_introducer "comment_introducer"
 // ------------------------------------------------------------------------------
 // Select expression
 // ------------------------------------------------------------------------------
-//= type select_expression = { tag: "select_expression", columns: select_list } & table_expression;
+//= type select_expression = { tag: "select", columns: select_list } & table_expression;
 select_expression "select_expression"
   = SELECT (_ set_quantifier)? _ columns:select_list _ table:table_expression
-    { return { tag: 'select_expression', columns: columns, ...table }; }
+    { return { tag: "select", columns: columns, ...table }; }
 
 //= type select_list = null|select_sublist[];
 select_list "select_list"
@@ -171,7 +191,7 @@ column_name "column_name"
 //= type table_expression = { from: from_clause, where: where_clause|null, group_by: group_by_clause|null, having: having_clause|null }
 table_expression "table_expression"
   = from:from_clause where:(_ where_clause)? group_by:(_ group_by_clause)? having:(_ having_clause)?
-    { return { tag: "table_expression", from: from, where: where ? where[1] : null, group_by: group_by ? group_by[1] : null, having: having ? having[1] : null }; }
+    { return { from: from, where: where ? where[1] : null, group_by: group_by ? group_by[1] : null, having: having ? having[1] : null }; }
 
 //= type from_clause = table_reference;
 from_clause "from_clause"
@@ -276,9 +296,9 @@ table_reference_primary
   = left_paren _ table:table_reference _ right_paren
     { return table; }
   / table:table_name correlation:(_ correlation_specification)?
-    { return { tag: 'table_name', table: table, correlation: correlation ? correlation[1] : null }: }
+    { return { tag: 'table_name', table: table, correlation: correlation ? correlation[1] : null }; }
   / expr:derived_table correlation:(_ correlation_specification)?
-    { return { tag: 'expression', expr: expr, correlation: correlation ? correlation[1] : null }: }
+    { return { tag: 'expression', expr: expr, correlation: correlation ? correlation[1] : null }; }
 
 //= type correlation_specification = { tag: "correlation_specification" };
 correlation_specification "correlation_specification"
@@ -322,10 +342,10 @@ outer_join_type "outer_join_type"
 // Delete expression
 // ------------------------------------------------------------------------------
 
-//= type delete_expression = { tag: 'delete_expression', table: table_name, where: expression };
+//= type delete_expression = { tag: 'delete', table: table_name, where: expression };
 delete_expression "delete_expression"
   = DELETE _ FROM _ table:table_name where:(_ WHERE _ expression)?
-    { return { tag: 'delete_expression', table: table, where: where ? where[3] : null }; }
+    { return { tag: 'delete', table: table, where: where ? where[3] : null }; }
 
 // ------------------------------------------------------------------------------
 // Insert expression
@@ -450,7 +470,7 @@ comment_character = !newline .
 // Keywords
 // ------------------------------------------------------------------------------
 keyword
-  = DELETE / SELECT / OR / AND / IN / NOT / IS / LIKE / MATCH / OVERLAPS / FROM / JOIN / CROSS / WHERE / ORDER / LIMIT / OFFSET / GROUP / DISTINCT / ALL / AS / HAVING / VALUES / BY / COLLATE / NATURAL / ON /USING/INNER/UNION/OUTER/LEFT/RIGHT/FULL/INSERT/INTO/DEFAULT/UPDATE/SET
+  = DELETE / SELECT / OR / AND / IN / NOT / IS / LIKE / MATCH / OVERLAPS / FROM / JOIN / CROSS / WHERE / ORDER / LIMIT / OFFSET / GROUP / DISTINCT / ALL / AS / HAVING / VALUES / BY / COLLATE / NATURAL / ON /USING/INNER/UNION/OUTER/LEFT/RIGHT/FULL/INSERT/INTO/DEFAULT/UPDATE/SET/AVG / MAX / MIN / SUM / COUNT
   
 DELETE "DELETE" = "DELETE"i !identifier_start { return "DELETE"; }
 SELECT "SELECT" = "SELECT"i !identifier_start { return "SELECT"; }
@@ -491,6 +511,20 @@ INTO "INTO" = "INTO"i !identifier_start { return "INTO"; }
 DEFAULT "DEFAULT" = "DEFAULT"i !identifier_start { return "DEFAULT"; }
 UPDATE "UPDATE" = "UPDATE"i !identifier_start { return "UPDATE"; }
 SET "SET" = "SET"i !identifier_start { return "SET"; }
+AVG "AVG" = "AVG"i !identifier_start { return "AVG"; }
+MAX "MAX" = "MAX"i !identifier_start { return "MAX"; }
+MIN "MIN" = "MIN"i !identifier_start { return "MIN"; }
+SUM "SUM" = "SUM"i !identifier_start { return "SUM"; }
+COUNT "COUNT" = "COUNT"i !identifier_start { return "COUNT"; }
 
-
-//= export declare function parse(input: string): expression[];
+//= declare module "typescript-sql/fast" {
+//=   export function print(input: string): expression[];
+//= }
+//= 
+//= declare module "typescript-sql/compact" {
+//=   export function print(input: string): expression[];
+//= }
+//= 
+//= declare module "typescript-sql" {
+//=   export * from "typescript-sql/fast";
+//= }

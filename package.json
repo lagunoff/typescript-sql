@@ -8,10 +8,7 @@
   "license": "MIT",
   "scripts": {
     "test": "node tests/index.js",
-    "build": "pegjs --optimize speed -o lib/fast.js src/grammar.pegjs; pegjs --optimize size -o lib/compact.js src/grammar.pegjs"
+    "build": "./scripts/build.sh"
   },
-  "devDependencies": {},
-  "dependencies": {
-    "pegjs": "^0.10.0"
-  }
+  "devDependencies": { "pegjs": "^0.10.0" }
 }
