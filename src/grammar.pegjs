@@ -23,6 +23,8 @@ stmt
 // ------------------------------------------------------------------------------
 // Expressions
 // ------------------------------------------------------------------------------
+
+//= type expression = select_expression|delete_expression|insert_expression|update_expression|expression_primary;
 expression
   = select_expression
   / delete_expression
@@ -30,10 +32,11 @@ expression
   / update_expression
   / binary_expression
 
+//= type expression_primary = unary_expression|{ tag: 'literal', value: literal }|values_expression|{ tag: 'ident', name: identifier }|{ tag: 'tuple', left: expression, right: expression };
 expression_primary
   = unary_expression
-  / literal
-  / signed_integer
+  / value:literal { return { tag: 'literal', value: value }; }
+  / value:signed_integer { return { tag: 'literal', value: value }; }
   / values_expression
   / ident:identifier { return { tag: 'ident', name: ident }; }
   / left_paren _ expr:expression tail:(_ comma _ expression)* _ right_paren
@@ -52,10 +55,9 @@ expression_primary
 //= type binary_expression = {
 //=   tag: "binary_expression",
 //=   op: "||"|"*"|"/"|"+"|"-"|"<"|"<="|">"|">="|"="|"<>"|"IS"|"IS_NOT"|"IN"|"LIKE"|"MATCH"|"AND"|"OR"|"OVERLAPS",
-//=   left: value_expression,
-//=   right: value_expression,
+//=   left: expression,
+//=   right: expression,
 //= };
-//= printers["binary_expression"] = function(value) { throw 'print "binary_expression": unimplemented'; };
 binary_expression "binary_expression"
   = or_expression
 
@@ -87,10 +89,11 @@ concatenation_expression "concatenation_expression"
   = head:expression_primary tail:(_ (concatenation_operator) _ expression_primary)*
     { return makeBinary(head, tail); }
 
+//= type values_expression = { tag: 'values', exprs: expression[] }; 
 values_expression "values_expression"
-  = VALUES _ expr:comma_separated_expressions { return expr; }
+  = VALUES _ exprs:comma_separated_expressions { return { tag: 'values', exprs: exprs }; }
 
-//= type unary_expression = { tag: "unary", op: "+"|"-"|"NOT", expr: value_expression };
+//= type unary_expression = { tag: "unary", op: "+"|"-"|"NOT", expr: expression };
 unary_expression "unary_expression"
   = op:sign _ expr:expression { return { tag: 'unary', op: op, expr: expr }; }
   / op:NOT _ expr:expression { return { tag: 'unary', op: op, expr: expr }; }
@@ -99,6 +102,8 @@ unary_expression "unary_expression"
 // ------------------------------------------------------------------------------
 // Identifiers
 // ------------------------------------------------------------------------------
+
+//= type identifier = string;
 identifier "identifier"
   = regular_identifier
   / double_quote body:delimited_identifier_body double_quote { return unesc2(body); }
@@ -141,14 +146,15 @@ select_expression "select_expression"
   = SELECT (_ set_quantifier)? _ columns:select_list _ table:table_expression
     { return { tag: 'select_expression', columns: columns, ...table }; }
 
+//= type select_list = null|select_sublist[];
 select_list "select_list"
   = asterisk { return null; }
-  / $(select_sublist (_ comma _ select_sublist)*)
+  / select_sublist (_ comma _ select_sublist)*
 
-//= type select_sublist = { tag: "select_sublist" };
+//= type select_sublist = derived_column|{ tag: 'qualified_asterisk', qualifier: qualifier };
 select_sublist "select_sublist"
   = derived_column
-  / qualifier period asterisk
+  / qualifier:qualifier period asterisk { return { tag: 'qualified_asterisk', qualifier: qualifier }; }
 
 //= type derived_column = [expression, as_clause|null];
 derived_column "derived_column"
@@ -162,6 +168,7 @@ as_clause "as_clause"
 column_name "column_name"
   = identifier
 
+//= type table_expression = { from: from_clause, where: where_clause|null, group_by: group_by_clause|null, having: having_clause|null }
 table_expression "table_expression"
   = from:from_clause where:(_ where_clause)? group_by:(_ group_by_clause)? having:(_ having_clause)?
     { return { tag: "table_expression", from: from, where: where ? where[1] : null, group_by: group_by ? group_by[1] : null, having: having ? having[1] : null }; }
@@ -195,7 +202,7 @@ set_quantifier "set_quantifier"
   = DISTINCT
   / ALL
 
-//= type qualifier = { tag: "qualifier" };
+//= type qualifier = table_name|correlation_name;
 qualifier "qualifier"
   = table_name
   / correlation_name
@@ -235,7 +242,7 @@ grouping_column_reference "grouping_column_reference"
 collate_clause "collate_clause"
   = COLLATE _ name:collation_name { return name; }
 
-//= type collation_name = collation_name;
+//= type collation_name = qualified_name;
 collation_name "collation_name"
   = qualified_name
 
@@ -261,11 +268,17 @@ join_kw
   = CROSS _ JOIN { return 'CROSS'; }
   / NATURAL? ty:(_ join_type)? _ JOIN { return ty ? ty[1] : 'LEFT'; }
 
-//= type table_reference_primary = ;
+//= type table_reference_primary =
+//=   | { tag: 'table_name', table: table_name, correlation: correlation_specification|null }
+//=   | { tag: 'expression', expr: expression, correlation: correlation_specification|null }
+//= ;
 table_reference_primary
-  = left_paren _ table:table_reference _ right_paren { return table; }
-  / $(table_name (_ correlation_specification)?)
-  / $(derived_table _ correlation_specification)
+  = left_paren _ table:table_reference _ right_paren
+    { return table; }
+  / table:table_name correlation:(_ correlation_specification)?
+    { return { tag: 'table_name', table: table, correlation: correlation ? correlation[1] : null }: }
+  / expr:derived_table correlation:(_ correlation_specification)?
+    { return { tag: 'expression', expr: expr, correlation: correlation ? correlation[1] : null }: }
 
 //= type correlation_specification = { tag: "correlation_specification" };
 correlation_specification "correlation_specification"
@@ -318,7 +331,7 @@ delete_expression "delete_expression"
 // Insert expression
 // ------------------------------------------------------------------------------
 
-//= type insert_statement = { tag: "insert", table: table_name } & insert_columns_and_source;
+//= type insert_expression = { tag: "insert", table: table_name } & insert_columns_and_source;
 insert_expression "insert_expression"
   = INSERT _ INTO _ table:table_name _ columns:insert_columns_and_source
     { return { tag: "insert", table: table, ...columns }; }
@@ -358,10 +371,13 @@ update_source "update_source"
 // ------------------------------------------------------------------------------
 // Literals
 // ------------------------------------------------------------------------------
+
+//= type literal = string_literal|numeric_literal;
 literal "literal"
   = numeric_literal
   / string_literal
 
+//= type string_literal = string;
 string_literal "string_literal"
   = quote head:$(character_representation*) quote tail:(separator+ quote $(character_representation*) quote)*
     { return tail ? tail.reduce(function(acc, x) { return acc + unesc(x[2]); }, unesc(head)) : unesc(head); }
@@ -376,6 +392,7 @@ nonquote_character
 quote_symbol "quote_symbol"
   = quote quote
 
+//= type numeric_literal = number;
 numeric_literal "numeric_literal"
   = approximate_numeric_literal
   / exact_numeric_literal
@@ -396,6 +413,7 @@ mantissa "mantissa"
 unsigned_integer "unsigned_integer"
   = text:$(digit+) { return parseInt(text); }
 
+//= type signed_integer = number;
 signed_integer "unsigned_integer"
   = text:$(sign? digit+) { return parseInt(text); }
 
@@ -473,3 +491,6 @@ INTO "INTO" = "INTO"i !identifier_start { return "INTO"; }
 DEFAULT "DEFAULT" = "DEFAULT"i !identifier_start { return "DEFAULT"; }
 UPDATE "UPDATE" = "UPDATE"i !identifier_start { return "UPDATE"; }
 SET "SET" = "SET"i !identifier_start { return "SET"; }
+
+
+//= export declare function parse(input: string): expression[];
